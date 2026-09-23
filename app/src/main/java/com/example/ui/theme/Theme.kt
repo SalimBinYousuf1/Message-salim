@@ -19,6 +19,7 @@ data class SalimCustomColors(
     val surface: Color,
     val surfaceVariant: Color,
     val surfaceTranslucent: Color,
+    val searchBackground: Color,
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
@@ -27,6 +28,7 @@ data class SalimCustomColors(
     val bubbleTextIncoming: Color,
     val bubbleTextOutgoing: Color,
     val accent: Color,
+    val divider: Color,
     val isDark: Boolean
 )
 
@@ -36,14 +38,16 @@ val LocalSalimColors = staticCompositionLocalOf {
         surface = LightSurface,
         surfaceVariant = LightSurfaceVariant,
         surfaceTranslucent = LightSurfaceTranslucent,
+        searchBackground = LightSearchBackground,
         textPrimary = LightTextPrimary,
         textSecondary = LightTextSecondary,
         textTertiary = LightTextTertiary,
         bubbleIncoming = LightBubbleIncoming,
-        bubbleOutgoing = LightBubbleOutgoing,
+        bubbleOutgoing = AppleBlue,
         bubbleTextIncoming = LightTextPrimary,
         bubbleTextOutgoing = Color.White,
         accent = AppleBlue,
+        divider = LightDivider,
         isDark = false
     )
 }
@@ -63,12 +67,12 @@ fun SalimTheme(
     val accentColor = Color(settings.accentPalette.hexColor)
 
     val customColors = if (isDark) {
-        val bg = if (settings.pureBlackOled) DarkBackground else Color(0xFF0F0F12)
         SalimCustomColors(
-            background = bg,
+            background = DarkBackground,
             surface = DarkSurface,
             surfaceVariant = DarkSurfaceVariant,
-            surfaceTranslucent = if (settings.reducedTransparency) bg else DarkSurfaceTranslucent,
+            surfaceTranslucent = DarkSurfaceTranslucent,
+            searchBackground = DarkSearchBackground,
             textPrimary = DarkTextPrimary,
             textSecondary = DarkTextSecondary,
             textTertiary = DarkTextTertiary,
@@ -77,6 +81,7 @@ fun SalimTheme(
             bubbleTextIncoming = DarkTextPrimary,
             bubbleTextOutgoing = Color.White,
             accent = accentColor,
+            divider = DarkDivider,
             isDark = true
         )
     } else {
@@ -84,7 +89,8 @@ fun SalimTheme(
             background = LightBackground,
             surface = LightSurface,
             surfaceVariant = LightSurfaceVariant,
-            surfaceTranslucent = if (settings.reducedTransparency) LightBackground else LightSurfaceTranslucent,
+            surfaceTranslucent = LightSurfaceTranslucent,
+            searchBackground = LightSearchBackground,
             textPrimary = LightTextPrimary,
             textSecondary = LightTextSecondary,
             textTertiary = LightTextTertiary,
@@ -93,6 +99,7 @@ fun SalimTheme(
             bubbleTextIncoming = LightTextPrimary,
             bubbleTextOutgoing = Color.White,
             accent = accentColor,
+            divider = LightDivider,
             isDark = false
         )
     }

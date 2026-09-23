@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Sms
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -88,18 +85,19 @@ fun EmptyStateView(
 
         if (actionLabel != null && onActionClick != null) {
             Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onActionClick,
-                shape = SquircleButtonShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.accent,
-                    contentColor = Color.White
-                ),
-                contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+            Box(
+                modifier = Modifier
+                    .clip(SquircleButtonShape)
+                    .background(colors.accent)
+                    .applePressable(onClick = onActionClick)
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = actionLabel,
-                    fontWeight = FontWeight.SemiBold
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
                 )
             }
         }
@@ -119,7 +117,7 @@ fun DefaultSmsPromptBanner(
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(SquircleCardShape)
             .background(colors.surface)
-            .clickable(onClick = onSetDefaultClick)
+            .applePressable(onClick = onSetDefaultClick)
             .padding(16.dp)
     ) {
         Row(

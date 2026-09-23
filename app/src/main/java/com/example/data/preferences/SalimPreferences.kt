@@ -37,8 +37,12 @@ data class SalimSettings(
     val ambientBackground: AmbientBackgroundMode = AmbientBackgroundMode.SUBTLE,
     val reducedMotion: Boolean = false,
     val reducedTransparency: Boolean = false,
+    val glassOpacity: Float = 0.82f,
     val lockScreenPrivacy: Boolean = false,
     val hapticsEnabled: Boolean = true,
+    val biometricLockEnabled: Boolean = false,
+    val flagSecureEnabled: Boolean = false,
+    val deliverySoundsEnabled: Boolean = true,
     val defaultSubId: Int = -1
 )
 
@@ -51,8 +55,12 @@ class PreferencesRepository(private val context: Context) {
         val AMBIENT_BG = stringPreferencesKey("ambient_bg")
         val REDUCED_MOTION = booleanPreferencesKey("reduced_motion")
         val REDUCED_TRANSPARENCY = booleanPreferencesKey("reduced_transparency")
+        val GLASS_OPACITY = androidx.datastore.preferences.core.floatPreferencesKey("glass_opacity")
         val LOCK_SCREEN_PRIVACY = booleanPreferencesKey("lock_screen_privacy")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock")
+        val FLAG_SECURE = booleanPreferencesKey("flag_secure")
+        val DELIVERY_SOUNDS = booleanPreferencesKey("delivery_sounds")
         val DEFAULT_SUB_ID = intPreferencesKey("default_sub_id")
     }
 
@@ -73,8 +81,12 @@ class PreferencesRepository(private val context: Context) {
             ambientBackground = ambient,
             reducedMotion = preferences[PreferencesKeys.REDUCED_MOTION] ?: false,
             reducedTransparency = preferences[PreferencesKeys.REDUCED_TRANSPARENCY] ?: false,
+            glassOpacity = preferences[PreferencesKeys.GLASS_OPACITY] ?: 0.82f,
             lockScreenPrivacy = preferences[PreferencesKeys.LOCK_SCREEN_PRIVACY] ?: false,
             hapticsEnabled = preferences[PreferencesKeys.HAPTICS_ENABLED] ?: true,
+            biometricLockEnabled = preferences[PreferencesKeys.BIOMETRIC_LOCK] ?: false,
+            flagSecureEnabled = preferences[PreferencesKeys.FLAG_SECURE] ?: false,
+            deliverySoundsEnabled = preferences[PreferencesKeys.DELIVERY_SOUNDS] ?: true,
             defaultSubId = preferences[PreferencesKeys.DEFAULT_SUB_ID] ?: -1
         )
     }
@@ -103,12 +115,28 @@ class PreferencesRepository(private val context: Context) {
         context.dataStore.edit { it[PreferencesKeys.REDUCED_TRANSPARENCY] = enabled }
     }
 
+    suspend fun updateGlassOpacity(opacity: Float) {
+        context.dataStore.edit { it[PreferencesKeys.GLASS_OPACITY] = opacity.coerceIn(0.20f, 0.98f) }
+    }
+
     suspend fun updateLockScreenPrivacy(enabled: Boolean) {
         context.dataStore.edit { it[PreferencesKeys.LOCK_SCREEN_PRIVACY] = enabled }
     }
 
     suspend fun updateHaptics(enabled: Boolean) {
         context.dataStore.edit { it[PreferencesKeys.HAPTICS_ENABLED] = enabled }
+    }
+
+    suspend fun updateBiometricLock(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.BIOMETRIC_LOCK] = enabled }
+    }
+
+    suspend fun updateFlagSecure(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.FLAG_SECURE] = enabled }
+    }
+
+    suspend fun updateDeliverySounds(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.DELIVERY_SOUNDS] = enabled }
     }
 
     suspend fun updateDefaultSubId(subId: Int) {

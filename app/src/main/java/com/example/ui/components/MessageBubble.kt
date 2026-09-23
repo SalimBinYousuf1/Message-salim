@@ -5,9 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
@@ -36,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
@@ -63,12 +60,9 @@ fun MessageBubble(
     val context = LocalContext.current
     val isOutgoing = !message.isIncoming
 
-    val bubbleShape = RoundedCornerShape(
-        topStart = if (!isOutgoing && !isFirstInGroup) 6.dp else 18.dp,
-        topEnd = if (isOutgoing && !isFirstInGroup) 6.dp else 18.dp,
-        bottomStart = if (!isOutgoing && !isLastInGroup) 6.dp else 18.dp,
-        bottomEnd = if (isOutgoing && !isLastInGroup) 6.dp else 18.dp
-    )
+    // Apple-grade continuous squircle corner curvature
+    val bubbleRadius = if (!isFirstInGroup && !isLastInGroup) 8.dp else 18.dp
+    val bubbleShape = SquircleShape(bubbleRadius)
 
     val bubbleBg = if (isOutgoing) colors.bubbleOutgoing else colors.bubbleIncoming
     val textColor = if (isOutgoing) colors.bubbleTextOutgoing else colors.bubbleTextIncoming
@@ -78,7 +72,7 @@ fun MessageBubble(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = if (isFirstInGroup) 5.dp else 1.5.dp),
+            .padding(horizontal = 16.dp, vertical = if (isFirstInGroup) 4.dp else 1.5.dp),
         horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
     ) {
         Box(
@@ -86,7 +80,8 @@ fun MessageBubble(
                 .widthIn(max = 290.dp)
                 .clip(bubbleShape)
                 .background(bubbleBg)
-                .combinedClickable(
+                .applePressable(
+                    pressedScale = 0.98f,
                     onClick = {
                         if (message.mediaUri != null) {
                             onMediaClick(message)
@@ -110,11 +105,11 @@ fun MessageBubble(
                             .data(message.mediaUri)
                             .crossfade(true)
                             .build(),
-                        contentDescription = "MMS Attachment",
+                        contentDescription = "Attachment",
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 120.dp, max = 220.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(SquircleButtonShape),
                         contentScale = ContentScale.Crop
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -125,12 +120,12 @@ fun MessageBubble(
                         text = message.body,
                         style = MaterialTheme.typography.bodyLarge,
                         color = textColor,
-                        fontSize = 15.5.sp,
-                        lineHeight = 21.sp
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Row(
                     modifier = Modifier.align(Alignment.End),
@@ -139,8 +134,9 @@ fun MessageBubble(
                     Text(
                         text = timeString,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isOutgoing) Color.White.copy(alpha = 0.72f) else colors.textSecondary,
-                        fontSize = 10.5.sp
+                        color = if (isOutgoing) Color.White.copy(alpha = 0.75f) else colors.textSecondary,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace // Tabular numerals
                     )
 
                     if (isOutgoing) {
@@ -183,30 +179,32 @@ fun MessageBubble(
                 }
             }
         }
-
-        if (isOutgoing && message.status == MessageStatus.FAILED) {
-            Text(
-                text = "Not Delivered • Tap to Retry",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFFF3B30),
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .padding(top = 2.dp, end = 4.dp)
-                    .combinedClickable(onClick = { onRetryClick(message) })
-            )
-        }
     }
 }
 
-fun formatMessageTime(dateMillis: Long): String {
-    if (dateMillis <= 0L) return ""
+private fun formatMessageTime(timestamp: Long): String {
+    val date = Date(timestamp)
     val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return sdf.format(Date(dateMillis))
+    return sdf.format(date)
 }
 
-fun formatDateHeader(dateMillis: Long): String {
-    if (dateMillis <= 0L) return ""
-    val sdf = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault())
-    return sdf.format(Date(dateMillis))
+fun formatDateHeader(timestamp: Long): String {
+    val now = java.util.Calendar.getInstance()
+    val msgCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+
+    return when {
+        now.get(java.util.Calendar.YEAR) == msgCal.get(java.util.Calendar.YEAR) &&
+        now.get(java.util.Calendar.DAY_OF_YEAR) == msgCal.get(java.util.Calendar.DAY_OF_YEAR) -> "Today"
+
+        now.get(java.util.Calendar.YEAR) == msgCal.get(java.util.Calendar.YEAR) &&
+        now.get(java.util.Calendar.DAY_OF_YEAR) - msgCal.get(java.util.Calendar.DAY_OF_YEAR) == 1 -> "Yesterday"
+
+        now.get(java.util.Calendar.YEAR) == msgCal.get(java.util.Calendar.YEAR) -> {
+            SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date(timestamp))
+        }
+
+        else -> {
+            SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timestamp))
+        }
+    }
 }

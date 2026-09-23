@@ -22,11 +22,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlin.math.abs
 
-val SquircleCornerRadius = 18.dp
-val SquircleBubbleShape = RoundedCornerShape(18.dp)
-val SquircleCardShape = RoundedCornerShape(16.dp)
-val SquircleButtonShape = RoundedCornerShape(14.dp)
-
 private val AVATAR_GRADIENTS = listOf(
     listOf(Color(0xFF8E8E93), Color(0xFF636366)), // Classic slate
     listOf(Color(0xFF007AFF), Color(0xFF5856D6)), // Apple Blue -> Violet

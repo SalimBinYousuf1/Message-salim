@@ -17,22 +17,22 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +49,10 @@ import com.example.data.model.ContactItem
 import com.example.ui.components.AgslAmbientBackground
 import com.example.ui.components.AvatarView
 import com.example.ui.components.ComposerBar
+import com.example.ui.components.LiquidGlassSurface
+import com.example.ui.components.SquircleCardShape
+import com.example.ui.components.SquirclePillShape
+import com.example.ui.components.applePressable
 import com.example.ui.theme.LocalSalimColors
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -68,6 +72,11 @@ fun NewMessageScreen(
         viewModel.onComposerTextChanged(initialBody)
     }
 
+    val listState = rememberLazyListState()
+    val isScrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 10 }
+    }
+
     AgslAmbientBackground(
         mode = settings.ambientBackground,
         reducedMotion = settings.reducedMotion,
@@ -76,93 +85,95 @@ fun NewMessageScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(colors.surfaceTranslucent)
-                        .statusBarsPadding()
+                LiquidGlassSurface(
+                    isScrolled = isScrolled,
+                    glassOpacity = settings.glassOpacity,
+                    reducedTransparency = settings.reducedTransparency,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .statusBarsPadding()
                     ) {
-                        TextButton(onClick = onCancel) {
-                            Text("Cancel", color = colors.accent, fontSize = 16.sp)
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Text(
-                            text = "New Message",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.textPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Spacer(modifier = Modifier.width(60.dp))
-                    }
-
-                    HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                    // To: line with recipient chips and inline text field
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "To: ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        FlowRow(
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 4.dp),
-                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            uiState.selectedRecipients.forEach { number ->
-                                RecipientChip(
-                                    text = number,
-                                    onRemove = { viewModel.removeRecipient(number) }
-                                )
+                            TextButton(onClick = onCancel) {
+                                Text("Cancel", color = colors.accent, fontSize = 16.sp)
                             }
 
-                            BasicTextField(
-                                value = uiState.recipientInput,
-                                onValueChange = { viewModel.onRecipientInputChanged(it) },
-                                textStyle = TextStyle(
-                                    color = colors.textPrimary,
-                                    fontSize = 15.sp
-                                ),
-                                cursorBrush = SolidColor(colors.accent),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Phone,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        if (uiState.recipientInput.isNotBlank()) {
-                                            viewModel.addManualNumber(uiState.recipientInput)
-                                        }
-                                    }
-                                ),
-                                modifier = Modifier
-                                    .padding(vertical = 4.dp)
-                                    .width(if (uiState.selectedRecipients.isEmpty()) 200.dp else 120.dp)
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            Text(
+                                text = "New Message",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold
                             )
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            Spacer(modifier = Modifier.width(60.dp))
+                        }
+
+                        // To: line with recipient chips and inline text field
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "To: ",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            FlowRow(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 4.dp),
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                            ) {
+                                uiState.selectedRecipients.forEach { number ->
+                                    RecipientChip(
+                                        text = number,
+                                        onRemove = { viewModel.removeRecipient(number) }
+                                    )
+                                }
+
+                                BasicTextField(
+                                    value = uiState.recipientInput,
+                                    onValueChange = { viewModel.onRecipientInputChanged(it) },
+                                    textStyle = TextStyle(
+                                        color = colors.textPrimary,
+                                        fontSize = 15.sp
+                                    ),
+                                    cursorBrush = SolidColor(colors.accent),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Phone,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            if (uiState.recipientInput.isNotBlank()) {
+                                                viewModel.addManualNumber(uiState.recipientInput)
+                                            }
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .padding(vertical = 4.dp)
+                                        .width(if (uiState.selectedRecipients.isEmpty()) 200.dp else 120.dp)
+                                )
+                            }
                         }
                     }
-
-                    HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
                 }
             },
             bottomBar = {
@@ -178,11 +189,14 @@ fun NewMessageScreen(
                         }
                     },
                     onAttachClick = {},
+                    glassOpacity = settings.glassOpacity,
+                    reducedTransparency = settings.reducedTransparency,
                     isSendEnabled = canSend
                 )
             }
         ) { innerPadding ->
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -199,7 +213,10 @@ fun NewMessageScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.addManualNumber(uiState.recipientInput) }
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .clip(SquircleCardShape)
+                                .background(colors.surfaceVariant.copy(alpha = 0.5f))
+                                .applePressable { viewModel.addManualNumber(uiState.recipientInput) }
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -225,9 +242,9 @@ private fun RecipientChip(
     Row(
         modifier = Modifier
             .padding(end = 6.dp, bottom = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(SquirclePillShape)
             .background(colors.accent.copy(alpha = 0.14f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -257,8 +274,10 @@ private fun ContactSuggestionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(SquircleCardShape)
+            .applePressable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AvatarView(
@@ -284,10 +303,4 @@ private fun ContactSuggestionRow(
             )
         }
     }
-
-    HorizontalDivider(
-        color = colors.surfaceVariant.copy(alpha = 0.4f),
-        thickness = 0.5.dp,
-        modifier = Modifier.padding(start = 70.dp)
-    )
 }

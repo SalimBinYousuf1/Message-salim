@@ -5,16 +5,23 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.SalimApplication
+import com.example.data.local.BlockedContact
+import com.example.data.local.ScheduledMessage
 import com.example.data.model.Message
 import com.example.data.model.SimCardInfo
 import com.example.data.preferences.SalimSettings
+import com.example.telephony.AudioPlayerHelper
+import com.example.telephony.AudioRecorderHelper
+import com.example.telephony.ScheduledSmsManager
 import com.example.telephony.SmsHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ConversationDetailUiState(
     val threadId: Long = -1L,
@@ -28,7 +35,13 @@ data class ConversationDetailUiState(
     val selectedSim: SimCardInfo? = null,
     val isSending: Boolean = false,
     val selectedMessageIds: Set<Long> = emptySet(),
-    val isSelectionMode: Boolean = false
+    val isSelectionMode: Boolean = false,
+    val isBlocked: Boolean = false,
+    val pendingScheduled: List<ScheduledMessage> = emptyList(),
+    val isRecordingVoice: Boolean = false,
+    val recordingDurationSec: Int = 0,
+    val recordingAmplitude: Float = 0f,
+    val replyingToMessage: Message? = null
 )
 
 class ConversationDetailViewModel(
@@ -40,6 +53,12 @@ class ConversationDetailViewModel(
     private val app = application as SalimApplication
     private val telephonyRepo = app.telephonyRepository
     private val preferencesRepo = app.preferencesRepository
+    private val scheduledDao = app.database.scheduledMessageDao()
+    private val blockedDao = app.database.blockedContactDao()
+    private val conversationDao = app.database.conversationDao()
+
+    val audioRecorder = AudioRecorderHelper(app)
+    val audioPlayer = AudioPlayerHelper()
 
     val settings: StateFlow<SalimSettings> = preferencesRepo.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SalimSettings())
@@ -52,15 +71,26 @@ class ConversationDetailViewModel(
     private val _selectedSim = MutableStateFlow<SimCardInfo?>(null)
     private val _isSending = MutableStateFlow(false)
     private val _selectedMessageIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val _isBlockedState = MutableStateFlow(false)
+    private val _isRecordingVoice = MutableStateFlow(false)
+    private val _replyingToMessage = MutableStateFlow<Message?>(null)
 
     private data class ComposerData(
         val text: String,
         val media: Uri?,
-        val isSending: Boolean
+        val isSending: Boolean,
+        val isRecording: Boolean,
+        val replyingTo: Message?
     )
 
-    private val _composerData = combine(_composerText, _attachedMedia, _isSending) { text, media, sending ->
-        ComposerData(text, media, sending)
+    private val _composerData = combine(
+        _composerText,
+        _attachedMedia,
+        _isSending,
+        _isRecordingVoice,
+        _replyingToMessage
+    ) { text, media, sending, recording, replyingTo ->
+        ComposerData(text, media, sending, recording, replyingTo)
     }
 
     private data class SimData(
@@ -72,11 +102,25 @@ class ConversationDetailViewModel(
         SimData(sims, sel)
     }
 
+    private data class StatusData(
+        val selectedIds: Set<Long>,
+        val isBlocked: Boolean,
+        val scheduledList: List<ScheduledMessage>
+    )
+
+    private val _statusData = combine(
+        _selectedMessageIds,
+        _isBlockedState,
+        scheduledDao.getPendingByThreadFlow(initialThreadId)
+    ) { selectedIds, blocked, scheduled ->
+        StatusData(selectedIds, blocked, scheduled)
+    }
+
     val uiState: StateFlow<ConversationDetailUiState> = combine(
         _composerData,
         _simData,
-        _selectedMessageIds
-    ) { composer, sim, selectedMsgIds ->
+        _statusData
+    ) { composer, sim, status ->
         val (name, photo) = SmsHelper.resolveContact(app, initialAddress)
         ConversationDetailUiState(
             threadId = initialThreadId,
@@ -89,8 +133,14 @@ class ConversationDetailViewModel(
             availableSims = sim.sims,
             selectedSim = sim.selected,
             isSending = composer.isSending,
-            selectedMessageIds = selectedMsgIds,
-            isSelectionMode = selectedMsgIds.isNotEmpty()
+            selectedMessageIds = status.selectedIds,
+            isSelectionMode = status.selectedIds.isNotEmpty(),
+            isBlocked = status.isBlocked,
+            pendingScheduled = status.scheduledList,
+            isRecordingVoice = composer.isRecording,
+            recordingDurationSec = audioRecorder.recordingDurationSeconds.value,
+            recordingAmplitude = audioRecorder.currentAmplitude.value,
+            replyingToMessage = composer.replyingTo
         )
     }.combine(
         telephonyRepo.getMessagesFlow(initialThreadId)
@@ -107,45 +157,55 @@ class ConversationDetailViewModel(
     )
 
     init {
-        loadSims()
-        loadDraftAndMarkRead()
+        loadSimCardsAndMetadata()
+        checkBlockedStatus()
     }
 
-    private fun loadSims() {
-        val sims = telephonyRepo.getAvailableSims()
-        _availableSims.value = sims
-        if (sims.isNotEmpty()) {
-            _selectedSim.value = sims[0]
-        }
-    }
-
-    private fun loadDraftAndMarkRead() {
+    private fun loadSimCardsAndMetadata() {
         viewModelScope.launch {
-            if (_threadIdState.value > 0) {
-                telephonyRepo.markThreadAsRead(_threadIdState.value)
-                val draft = telephonyRepo.getDraft(_threadIdState.value)
-                if (!draft.isNullOrBlank()) {
-                    _composerText.value = draft
-                }
-            } else if (_addressState.value.isNotBlank()) {
-                val resolvedThreadId = telephonyRepo.getOrCreateThreadId(_addressState.value)
-                _threadIdState.value = resolvedThreadId
-                telephonyRepo.markThreadAsRead(resolvedThreadId)
+            val sims = SmsHelper.getAvailableSims(app)
+            _availableSims.value = sims
+
+            // Check if thread has a preferred SIM
+            val metadata = conversationDao.getMetadata(initialThreadId)
+            val preferredSubId = metadata?.preferredSubId
+
+            val matchedSim = if (preferredSubId != null && preferredSubId != -1) {
+                sims.find { it.subscriptionId == preferredSubId }
+            } else {
+                null
+            }
+
+            _selectedSim.value = matchedSim ?: sims.firstOrNull()
+
+            // Load saved draft if any
+            if (metadata?.draft != null) {
+                _composerText.value = metadata.draft
             }
         }
     }
 
-    fun onComposerTextChanged(newText: String) {
-        _composerText.value = newText
+    private fun checkBlockedStatus() {
         viewModelScope.launch {
-            if (_threadIdState.value > 0) {
-                telephonyRepo.saveDraft(_threadIdState.value, if (newText.isBlank()) null else newText)
-            }
+            val blocked = blockedDao.isBlocked(initialAddress)
+            _isBlockedState.value = blocked
         }
     }
 
-    fun setAttachedMedia(uri: Uri?) {
+    fun onComposerTextChanged(text: String) {
+        _composerText.value = text
+        // Persist draft
+        viewModelScope.launch {
+            conversationDao.saveDraft(initialThreadId, text.ifBlank { null })
+        }
+    }
+
+    fun onMediaAttached(uri: Uri?) {
         _attachedMedia.value = uri
+    }
+
+    fun setReplyingTo(message: Message?) {
+        _replyingToMessage.value = message
     }
 
     fun toggleSim() {
@@ -154,15 +214,49 @@ class ConversationDetailViewModel(
         val current = _selectedSim.value
         val currentIndex = list.indexOf(current)
         val nextIndex = (currentIndex + 1) % list.size
-        _selectedSim.value = list[nextIndex]
+        val newSim = list[nextIndex]
+        _selectedSim.value = newSim
+
+        // Bind preference to this conversation
+        viewModelScope.launch {
+            conversationDao.setPreferredSubId(initialThreadId, newSim.subscriptionId)
+        }
+    }
+
+    fun startVoiceRecording() {
+        if (audioRecorder.startRecording()) {
+            _isRecordingVoice.value = true
+        }
+    }
+
+    fun stopVoiceRecordingAndSend() {
+        val recordedFile = audioRecorder.stopRecording()
+        _isRecordingVoice.value = false
+        if (recordedFile != null && recordedFile.exists()) {
+            val uri = Uri.fromFile(recordedFile)
+            _attachedMedia.value = uri
+            sendMessage()
+        }
+    }
+
+    fun cancelVoiceRecording() {
+        audioRecorder.cancelRecording()
+        _isRecordingVoice.value = false
     }
 
     fun sendMessage() {
-        val text = _composerText.value.trim()
+        val rawText = _composerText.value.trim()
         val media = _attachedMedia.value
         val address = _addressState.value.ifBlank { uiState.value.address }
-        if (text.isBlank() && media == null) return
+        if (rawText.isBlank() && media == null) return
         if (address.isBlank()) return
+
+        val reply = _replyingToMessage.value
+        val textToSend = if (reply != null && rawText.isNotBlank()) {
+            "Re: \"${reply.body.take(24)}...\": $rawText"
+        } else {
+            rawText
+        }
 
         _isSending.value = true
         val threadId = _threadIdState.value
@@ -172,14 +266,62 @@ class ConversationDetailViewModel(
             val success = telephonyRepo.sendMessage(
                 threadId = threadId,
                 destinationAddress = address,
-                messageText = text,
+                messageText = textToSend,
                 subId = subId
             )
             if (success) {
                 _composerText.value = ""
                 _attachedMedia.value = null
+                _replyingToMessage.value = null
+                conversationDao.saveDraft(threadId, null)
             }
             _isSending.value = false
+        }
+    }
+
+    fun scheduleMessage(scheduledTimestamp: Long) {
+        val text = _composerText.value.trim()
+        if (text.isBlank()) return
+        val subId = _selectedSim.value?.subscriptionId ?: -1
+
+        viewModelScope.launch {
+            val scheduled = ScheduledMessage(
+                threadId = initialThreadId,
+                address = initialAddress,
+                body = text,
+                subId = subId,
+                scheduledTimestamp = scheduledTimestamp
+            )
+            val newId = scheduledDao.insert(scheduled)
+            val inserted = scheduled.copy(id = newId)
+            ScheduledSmsManager.scheduleMessage(app, inserted)
+            _composerText.value = ""
+            conversationDao.saveDraft(initialThreadId, null)
+        }
+    }
+
+    fun cancelScheduledMessage(id: Long) {
+        viewModelScope.launch {
+            ScheduledSmsManager.cancelSchedule(app, id)
+            scheduledDao.delete(id)
+        }
+    }
+
+    fun toggleBlockCurrentContact() {
+        viewModelScope.launch {
+            val currentBlocked = _isBlockedState.value
+            if (currentBlocked) {
+                blockedDao.unblock(initialAddress)
+                _isBlockedState.value = false
+            } else {
+                blockedDao.block(
+                    BlockedContact(
+                        address = initialAddress,
+                        displayName = uiState.value.displayName
+                    )
+                )
+                _isBlockedState.value = true
+            }
         }
     }
 
@@ -222,5 +364,11 @@ class ConversationDetailViewModel(
                 telephonyRepo.deleteMessage(msgId)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        audioPlayer.stop()
+        audioRecorder.cancelRecording()
     }
 }

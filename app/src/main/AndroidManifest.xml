@@ -18,6 +18,16 @@
     <!-- Calling & Phone Intent -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
 
+    <!-- Audio & Media Recording -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Biometric Security -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- Alarms & Scheduling -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <!-- Notifications & System -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -132,6 +142,11 @@
         <!-- Receiver for Notification Direct Reply -->
         <receiver
             android:name=".telephony.NotificationActionReceiver"
+            android:exported="false" />
+
+        <!-- Receiver for Scheduled Messages -->
+        <receiver
+            android:name=".telephony.ScheduledSmsReceiver"
             android:exported="false" />
 
     </application>

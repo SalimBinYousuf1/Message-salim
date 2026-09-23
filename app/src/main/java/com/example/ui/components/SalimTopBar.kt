@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,13 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,42 +29,57 @@ import com.example.ui.theme.LocalSalimColors
 fun SalimLargeTopBar(
     title: String,
     modifier: Modifier = Modifier,
+    isScrolled: Boolean = false,
+    glassOpacity: Float = 0.82f,
+    reducedTransparency: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onCancelSelection: () -> Unit = {},
     navigationIcon: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     val colors = LocalSalimColors.current
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surfaceTranslucent)
-            .statusBarsPadding()
+    LiquidGlassSurface(
+        isScrolled = isScrolled,
+        glassOpacity = glassOpacity,
+        reducedTransparency = reducedTransparency,
+        modifier = modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .statusBarsPadding()
         ) {
-            if (navigationIcon != null) {
-                navigationIcon()
-            } else {
-                Spacer(modifier = Modifier.height(1.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isSelectionMode) {
+                    TextButton(onClick = onCancelSelection) {
+                        Text("Done", color = colors.accent, fontWeight = FontWeight.Bold)
+                    }
+                } else if (navigationIcon != null) {
+                    navigationIcon()
+                } else {
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                actions()
             }
-            Spacer(modifier = Modifier.weight(1f))
-            actions()
-        }
 
-        // Large Title
-        Text(
-            text = title,
-            style = MaterialTheme.typography.displayLarge,
-            color = colors.textPrimary,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
-        )
+            // Large Title - focal point of screen (34sp Bold)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.displayLarge,
+                color = colors.textPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+        }
     }
 }
 
@@ -74,35 +89,39 @@ fun SalimDetailTopBar(
     subtitle: String? = null,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isScrolled: Boolean = false,
+    glassOpacity: Float = 0.82f,
+    reducedTransparency: Boolean = false,
     avatar: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     val colors = LocalSalimColors.current
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surfaceTranslucent)
-            .statusBarsPadding()
+    LiquidGlassSurface(
+        isScrolled = isScrolled,
+        glassOpacity = glassOpacity,
+        reducedTransparency = reducedTransparency,
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .height(56.dp)
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = colors.accent
+                    tint = colors.textPrimary
                 )
             }
 
             if (avatar != null) {
                 avatar()
-                Spacer(modifier = Modifier.padding(start = 10.dp))
+                Spacer(modifier = Modifier.width(10.dp))
             }
 
             Column(
@@ -127,10 +146,5 @@ fun SalimDetailTopBar(
 
             actions()
         }
-
-        HorizontalDivider(
-            color = colors.surfaceVariant.copy(alpha = 0.6f),
-            thickness = 0.5.dp
-        )
     }
 }

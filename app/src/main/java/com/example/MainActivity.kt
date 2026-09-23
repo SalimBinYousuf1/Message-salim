@@ -55,6 +55,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
+            LaunchedEffect(settings.flagSecureEnabled) {
+                com.example.telephony.SecurityHelper.applyWindowSecurity(this@MainActivity, settings.flagSecureEnabled)
+            }
+
             SalimTheme(settings = settings) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     SalimNavApp(

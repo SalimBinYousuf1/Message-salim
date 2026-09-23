@@ -1,0 +1,6 @@
+{
+  "name": "Salim",
+  "description": "Production-grade Android SMS/MMS messenger with an Apple-level refined aesthetic, OLED dark mode, and real telephony integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

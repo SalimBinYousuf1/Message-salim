@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "salim_settings")
 
 enum class ThemeMode {
-    SYSTEM, LIGHT, DARK
+    SYSTEM, LIGHT, DARK, SALIM
 }
 
 enum class AccentPalette(val hexColor: Long, val title: String) {

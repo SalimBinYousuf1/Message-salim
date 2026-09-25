@@ -60,7 +60,10 @@ class MainActivity : ComponentActivity() {
             }
 
             SalimTheme(settings = settings) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = androidx.compose.ui.graphics.Color.Transparent
+                ) {
                     SalimNavApp(
                         conversationListViewModel = conversationListViewModel,
                         settingsViewModel = settingsViewModel,

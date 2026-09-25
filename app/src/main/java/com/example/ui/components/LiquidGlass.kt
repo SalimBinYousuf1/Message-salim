@@ -4,20 +4,36 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.theme.LocalSalimColors
 
 /**
@@ -122,4 +138,280 @@ fun LiquidGlassSurface(
         },
         content = content
     )
+}
+
+/**
+ * Apple-grade Liquid Glass Frost Button.
+ * Features:
+ * - Continuous squircle corner curvature
+ * - Semi-translucent frosted glass body
+ * - Specular rim highlight
+ * - Instant contact-down spring physics via applePressable
+ */
+@Composable
+fun LiquidGlassButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isPrimary: Boolean = false,
+    icon: ImageVector? = null,
+    text: String? = null,
+    shape: Shape = SquircleButtonShape
+) {
+    val colors = LocalSalimColors.current
+    val isDark = colors.isDark
+
+    val containerColor = if (isPrimary) {
+        colors.accent
+    } else if (isDark) {
+        Color(0xFF2C2C2E).copy(alpha = 0.65f)
+    } else {
+        Color(0xFFFFFFFF).copy(alpha = 0.75f)
+    }
+
+    val contentColor = if (isPrimary) {
+        Color.White
+    } else {
+        colors.textPrimary
+    }
+
+    Box(
+        modifier = modifier
+            .defaultMinSize(minHeight = 44.dp, minWidth = 44.dp)
+            .clip(shape)
+            .background(containerColor, shape)
+            .applePressable(enabled = enabled, onClick = onClick)
+            .drawWithContent {
+                drawContent()
+                // Top specular highlight
+                val highlightColor = if (isPrimary) {
+                    Color.White.copy(alpha = 0.35f)
+                } else if (isDark) {
+                    Color.White.copy(alpha = 0.12f)
+                } else {
+                    Color.White.copy(alpha = 0.85f)
+                }
+                drawLine(
+                    brush = Brush.horizontalGradient(
+                        listOf(Color.Transparent, highlightColor, Color.Transparent)
+                    ),
+                    start = Offset(0f, 0.5f),
+                    end = Offset(size.width, 0.5f),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            .padding(horizontal = if (text != null) 16.dp else 10.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = text,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            if (icon != null && text != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            if (text != null) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Liquid Glass Segmented Tab Row.
+ * Apple-style frosted segmented control container.
+ */
+@Composable
+fun LiquidGlassTabRow(
+    modifier: Modifier = Modifier,
+    shape: Shape = SquircleButtonShape,
+    content: @Composable RowScope.() -> Unit
+) {
+    val colors = LocalSalimColors.current
+    val isDark = colors.isDark
+
+    val bg = if (isDark) {
+        Color(0xFF1C1C1E).copy(alpha = 0.65f)
+    } else {
+        Color(0xFFE5E5EA).copy(alpha = 0.55f)
+    }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(bg, shape)
+            .padding(3.dp)
+            .drawWithContent {
+                drawContent()
+                // Subtle frosted container rim
+                val rimColor = if (isDark) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.5f)
+                drawLine(
+                    brush = Brush.horizontalGradient(listOf(Color.Transparent, rimColor, Color.Transparent)),
+                    start = Offset(0f, 0.5f),
+                    end = Offset(size.width, 0.5f),
+                    strokeWidth = 0.8.dp.toPx()
+                )
+            }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+    }
+}
+
+/**
+ * Liquid Glass Tab Item.
+ */
+@Composable
+fun RowScope.LiquidGlassTab(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badgeCount: Int = 0,
+    shape: Shape = SquircleButtonShape
+) {
+    val colors = LocalSalimColors.current
+    val isDark = colors.isDark
+
+    val tabBg = if (isSelected) {
+        if (isDark) Color(0xFF2C2C2E) else Color.White
+    } else {
+        Color.Transparent
+    }
+
+    val textColor = if (isSelected) {
+        colors.textPrimary
+    } else {
+        colors.textSecondary
+    }
+
+    Box(
+        modifier = modifier
+            .weight(1f)
+            .defaultMinSize(minHeight = 36.dp)
+            .clip(shape)
+            .background(tabBg, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = textColor,
+                fontSize = 13.sp,
+                maxLines = 1
+            )
+            if (badgeCount > 0) {
+                Spacer(modifier = Modifier.width(6.dp))
+                LiquidGlassBadge(count = badgeCount)
+            }
+        }
+    }
+}
+
+/**
+ * Liquid Glass Tabular Badge / Counter Chip.
+ */
+@Composable
+fun LiquidGlassBadge(
+    count: Int,
+    modifier: Modifier = Modifier,
+    containerColor: Color = LocalSalimColors.current.accent
+) {
+    Box(
+        modifier = modifier
+            .clip(SquirclePillShape)
+            .background(containerColor)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp
+        )
+    }
+}
+
+/**
+ * Liquid Glass Frost Filter Chip.
+ */
+@Composable
+fun LiquidGlassChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    shape: Shape = SquirclePillShape
+) {
+    val colors = LocalSalimColors.current
+    val isDark = colors.isDark
+
+    val chipBg = if (isSelected) {
+        colors.textPrimary
+    } else if (isDark) {
+        Color(0xFF2C2C2E).copy(alpha = 0.65f)
+    } else {
+        Color(0xFFFFFFFF).copy(alpha = 0.70f)
+    }
+
+    val chipText = if (isSelected) {
+        colors.background
+    } else {
+        colors.textPrimary
+    }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(chipBg, shape)
+            .applePressable(onClick = onClick)
+            .drawWithContent {
+                drawContent()
+                if (!isSelected) {
+                    val specularColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.8f)
+                    drawLine(
+                        brush = Brush.horizontalGradient(listOf(Color.Transparent, specularColor, Color.Transparent)),
+                        start = Offset(0f, 0.5f),
+                        end = Offset(size.width, 0.5f),
+                        strokeWidth = 0.8.dp.toPx()
+                    )
+                }
+            }
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            color = chipText,
+            fontSize = 13.sp
+        )
+    }
 }

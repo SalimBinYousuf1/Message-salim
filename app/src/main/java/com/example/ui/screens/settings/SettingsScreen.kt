@@ -84,6 +84,7 @@ import com.example.data.preferences.ThemeMode
 import com.example.telephony.SmsHelper
 import com.example.ui.components.AgslAmbientBackground
 import com.example.ui.components.SalimDetailTopBar
+import com.example.ui.components.SquircleButtonShape
 import com.example.ui.components.SquircleCardShape
 import com.example.ui.theme.LocalSalimColors
 import kotlinx.coroutines.launch
@@ -811,16 +812,17 @@ private fun ThemeModeSegmentedControl(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(SquircleButtonShape)
             .background(colors.surfaceVariant.copy(alpha = 0.5f))
-            .padding(2.dp)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         ThemeMode.entries.forEach { mode ->
             val isSelected = currentMode == mode
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(SquircleButtonShape)
                     .background(if (isSelected) colors.surface else Color.Transparent)
                     .clickable { onModeSelected(mode) }
                     .padding(vertical = 8.dp),
@@ -830,7 +832,9 @@ private fun ThemeModeSegmentedControl(
                     text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) colors.textPrimary else colors.textSecondary
+                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1
                 )
             }
         }

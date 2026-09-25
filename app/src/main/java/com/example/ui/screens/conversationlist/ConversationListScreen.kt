@@ -93,6 +93,7 @@ import com.example.ui.components.AgslAmbientBackground
 import com.example.ui.components.AvatarView
 import com.example.ui.components.DefaultSmsPromptBanner
 import com.example.ui.components.EmptyStateView
+import com.example.ui.components.LiquidGlassChip
 import com.example.ui.components.SalimLargeTopBar
 import com.example.ui.components.SquircleButtonShape
 import com.example.ui.components.SquircleCardShape
@@ -298,21 +299,11 @@ fun ConversationListScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(ConversationCategoryFilter.entries.toTypedArray()) { category ->
-                        val isSelected = uiState.categoryFilter == category
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) colors.textPrimary else colors.surfaceVariant.copy(alpha = 0.6f))
-                                .clickable { viewModel.setCategoryFilter(category) }
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = category.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) colors.background else colors.textPrimary
-                            )
-                        }
+                        LiquidGlassChip(
+                            label = category.label,
+                            isSelected = uiState.categoryFilter == category,
+                            onClick = { viewModel.setCategoryFilter(category) }
+                        )
                     }
                 }
 

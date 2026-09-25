@@ -52,6 +52,10 @@ val LocalSalimColors = staticCompositionLocalOf {
     )
 }
 
+val LocalSalimThemeMode = staticCompositionLocalOf {
+    ThemeMode.SYSTEM
+}
+
 @Composable
 fun SalimTheme(
     settings: SalimSettings = SalimSettings(),
@@ -62,46 +66,108 @@ fun SalimTheme(
         ThemeMode.SYSTEM -> systemDark
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+        ThemeMode.SALIM -> false
     }
 
     val accentColor = Color(settings.accentPalette.hexColor)
 
-    val customColors = if (isDark) {
-        SalimCustomColors(
-            background = DarkBackground,
-            surface = DarkSurface,
-            surfaceVariant = DarkSurfaceVariant,
-            surfaceTranslucent = DarkSurfaceTranslucent,
-            searchBackground = DarkSearchBackground,
-            textPrimary = DarkTextPrimary,
-            textSecondary = DarkTextSecondary,
-            textTertiary = DarkTextTertiary,
-            bubbleIncoming = DarkBubbleIncoming,
-            bubbleOutgoing = accentColor,
-            bubbleTextIncoming = DarkTextPrimary,
-            bubbleTextOutgoing = Color.White,
-            accent = accentColor,
-            divider = DarkDivider,
-            isDark = true
-        )
-    } else {
-        SalimCustomColors(
-            background = LightBackground,
-            surface = LightSurface,
-            surfaceVariant = LightSurfaceVariant,
-            surfaceTranslucent = LightSurfaceTranslucent,
-            searchBackground = LightSearchBackground,
-            textPrimary = LightTextPrimary,
-            textSecondary = LightTextSecondary,
-            textTertiary = LightTextTertiary,
-            bubbleIncoming = LightBubbleIncoming,
-            bubbleOutgoing = accentColor,
-            bubbleTextIncoming = LightTextPrimary,
-            bubbleTextOutgoing = Color.White,
-            accent = accentColor,
-            divider = LightDivider,
-            isDark = false
-        )
+    val customColors = when (settings.themeMode) {
+        ThemeMode.DARK -> {
+            SalimCustomColors(
+                background = DarkBackground,
+                surface = DarkSurface,
+                surfaceVariant = DarkSurfaceVariant,
+                surfaceTranslucent = DarkSurfaceTranslucent,
+                searchBackground = DarkSearchBackground,
+                textPrimary = DarkTextPrimary,
+                textSecondary = DarkTextSecondary,
+                textTertiary = DarkTextTertiary,
+                bubbleIncoming = DarkBubbleIncoming,
+                bubbleOutgoing = accentColor,
+                bubbleTextIncoming = DarkTextPrimary,
+                bubbleTextOutgoing = Color.White,
+                accent = accentColor,
+                divider = DarkDivider,
+                isDark = true
+            )
+        }
+        ThemeMode.SALIM -> {
+            SalimCustomColors(
+                background = Color(0xFFFAFBFC),
+                surface = Color(0xF2FFFFFF),
+                surfaceVariant = Color(0xE5F2F2F7),
+                surfaceTranslucent = Color(0xB8FFFFFF),
+                searchBackground = Color(0xD8E5E5EA),
+                textPrimary = Color(0xFF1C1C1E),
+                textSecondary = Color(0xFF505054),
+                textTertiary = Color(0xFF8E8E93),
+                bubbleIncoming = Color(0xF5FFFFFF),
+                bubbleOutgoing = accentColor,
+                bubbleTextIncoming = Color(0xFF1C1C1E),
+                bubbleTextOutgoing = Color.White,
+                accent = accentColor,
+                divider = Color(0x33000000),
+                isDark = false
+            )
+        }
+        ThemeMode.LIGHT -> {
+            SalimCustomColors(
+                background = LightBackground,
+                surface = LightSurface,
+                surfaceVariant = LightSurfaceVariant,
+                surfaceTranslucent = LightSurfaceTranslucent,
+                searchBackground = LightSearchBackground,
+                textPrimary = LightTextPrimary,
+                textSecondary = LightTextSecondary,
+                textTertiary = LightTextTertiary,
+                bubbleIncoming = LightBubbleIncoming,
+                bubbleOutgoing = accentColor,
+                bubbleTextIncoming = LightTextPrimary,
+                bubbleTextOutgoing = Color.White,
+                accent = accentColor,
+                divider = LightDivider,
+                isDark = false
+            )
+        }
+        ThemeMode.SYSTEM -> {
+            if (systemDark) {
+                SalimCustomColors(
+                    background = DarkBackground,
+                    surface = DarkSurface,
+                    surfaceVariant = DarkSurfaceVariant,
+                    surfaceTranslucent = DarkSurfaceTranslucent,
+                    searchBackground = DarkSearchBackground,
+                    textPrimary = DarkTextPrimary,
+                    textSecondary = DarkTextSecondary,
+                    textTertiary = DarkTextTertiary,
+                    bubbleIncoming = DarkBubbleIncoming,
+                    bubbleOutgoing = accentColor,
+                    bubbleTextIncoming = DarkTextPrimary,
+                    bubbleTextOutgoing = Color.White,
+                    accent = accentColor,
+                    divider = DarkDivider,
+                    isDark = true
+                )
+            } else {
+                SalimCustomColors(
+                    background = LightBackground,
+                    surface = LightSurface,
+                    surfaceVariant = LightSurfaceVariant,
+                    surfaceTranslucent = LightSurfaceTranslucent,
+                    searchBackground = LightSearchBackground,
+                    textPrimary = LightTextPrimary,
+                    textSecondary = LightTextSecondary,
+                    textTertiary = LightTextTertiary,
+                    bubbleIncoming = LightBubbleIncoming,
+                    bubbleOutgoing = accentColor,
+                    bubbleTextIncoming = LightTextPrimary,
+                    bubbleTextOutgoing = Color.White,
+                    accent = accentColor,
+                    divider = LightDivider,
+                    isDark = false
+                )
+            }
+        }
     }
 
     val m3ColorScheme = if (isDark) {
@@ -128,7 +194,10 @@ fun SalimTheme(
         )
     }
 
-    CompositionLocalProvider(LocalSalimColors provides customColors) {
+    CompositionLocalProvider(
+        LocalSalimColors provides customColors,
+        LocalSalimThemeMode provides settings.themeMode
+    ) {
         MaterialTheme(
             colorScheme = m3ColorScheme,
             typography = Typography,

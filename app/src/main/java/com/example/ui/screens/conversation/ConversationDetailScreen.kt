@@ -202,6 +202,22 @@ fun ConversationDetailScreen(
         }
     }
 
+    val isPlayingAudio by viewModel.audioPlayer.isPlaying.collectAsStateWithLifecycle()
+    val activeAudioUri by viewModel.audioPlayer.activeUri.collectAsStateWithLifecycle()
+    val audioProgress by viewModel.audioPlayer.progressFraction.collectAsStateWithLifecycle()
+    val audioCurrentMs by viewModel.audioPlayer.currentPositionMs.collectAsStateWithLifecycle()
+    val audioDurationMs by viewModel.audioPlayer.durationMs.collectAsStateWithLifecycle()
+    val playbackSpeed by viewModel.audioPlayer.playbackSpeed.collectAsStateWithLifecycle()
+
+    var spamDismissed by remember { mutableStateOf(false) }
+    val isUnknownSender = remember(uiState.displayName, uiState.address) {
+        uiState.displayName == uiState.address
+    }
+    val suspectedSpamMessage = remember(uiState.messages, settings.spamProtectionEnabled, isUnknownSender) {
+        if (!settings.spamProtectionEnabled || !isUnknownSender) null
+        else uiState.messages.find { it.isIncoming && com.example.telephony.SpamDetector.isSuspectedSpam(uiState.address, it.body, false) }
+    }
+
     // Show latest message directly on initial open without auto-scrolling down from the top
     LaunchedEffect(uiState.messages) {
         if (uiState.messages.isNotEmpty()) {
@@ -467,6 +483,67 @@ fun ConversationDetailScreen(
                         }
                     }
 
+                    // Suspected Spam & Phishing Warning Banner (Apple Amber Liquid Glass)
+                    if (suspectedSpamMessage != null && !spamDismissed) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFFFF9500).copy(alpha = 0.12f))
+                                .border(0.8.dp, Color(0xFFFF9500).copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Block,
+                                contentDescription = "Spam Warning",
+                                tint = Color(0xFFFF9500),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Suspected Spam / Phishing",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF9500)
+                                )
+                                Text(
+                                    text = com.example.telephony.SpamDetector.getSpamWarningMessage(suspectedSpamMessage.body),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textPrimary,
+                                    fontSize = 12.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFF3B30))
+                                            .clickable {
+                                                viewModel.blockContact()
+                                                spamDismissed = true
+                                                Toast.makeText(context, "Contact blocked and reported", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                                    ) {
+                                        Text("Block Sender", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(colors.surfaceVariant)
+                                            .clickable { spamDismissed = true }
+                                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                                    ) {
+                                        Text("Dismiss", color = colors.textPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Message List or Empty State
                     if (uiState.messages.isEmpty()) {
                         EmptyStateView(
@@ -509,7 +586,16 @@ fun ConversationDetailScreen(
                                     onReactionClick = { activeMessageForContext = it },
                                     onLongClick = { activeMessageForContext = it },
                                     onMediaClick = { it.mediaUri?.let { uri -> onMediaClick(uri) } },
-                                    onRetryClick = { viewModel.retrySendMessage(it) }
+                                    onRetryClick = { viewModel.retrySendMessage(it) },
+                                    fontScale = settings.fontSizeScale,
+                                    isPlayingAudio = isPlayingAudio && activeAudioUri == msg.mediaUri,
+                                    audioProgress = if (activeAudioUri == msg.mediaUri) audioProgress else 0f,
+                                    audioCurrentMs = if (activeAudioUri == msg.mediaUri) audioCurrentMs else 0,
+                                    audioDurationMs = if (activeAudioUri == msg.mediaUri) audioDurationMs else 0,
+                                    playbackSpeed = playbackSpeed,
+                                    onPlayAudioClick = { viewModel.playVoiceNote(context, it.mediaUri!!) },
+                                    onToggleAudioSpeed = { viewModel.audioPlayer.toggleSpeed() },
+                                    onSeekAudio = { viewModel.audioPlayer.seekTo(it) }
                                 )
                             }
                         }

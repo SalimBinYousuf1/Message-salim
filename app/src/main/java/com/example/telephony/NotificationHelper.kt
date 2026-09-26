@@ -18,10 +18,12 @@ object NotificationHelper {
     const val KEY_TEXT_REPLY = "key_salim_text_reply"
     const val ACTION_REPLY = "com.example.ACTION_REPLY"
     const val ACTION_MARK_READ = "com.example.ACTION_MARK_READ"
+    const val ACTION_COPY_OTP = "com.example.ACTION_COPY_OTP"
 
     const val EXTRA_THREAD_ID = "extra_thread_id"
     const val EXTRA_ADDRESS = "extra_address"
     const val EXTRA_NOTIFICATION_ID = "extra_notif_id"
+    const val EXTRA_OTP_CODE = "extra_otp_code"
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -128,6 +130,28 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .addAction(replyAction)
             .addAction(markReadAction)
+
+        val detectedOtp = OtpHelper.extractOtp(messageBody)
+        if (!detectedOtp.isNullOrBlank()) {
+            val copyOtpIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = ACTION_COPY_OTP
+                putExtra(EXTRA_OTP_CODE, detectedOtp)
+                putExtra(EXTRA_THREAD_ID, threadId)
+                putExtra(EXTRA_NOTIFICATION_ID, notifId)
+            }
+            val copyOtpPendingIntent = PendingIntent.getBroadcast(
+                context,
+                notifId + 20000,
+                copyOtpIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val copyOtpAction = NotificationCompat.Action.Builder(
+                android.R.drawable.ic_menu_save,
+                "Copy $detectedOtp",
+                copyOtpPendingIntent
+            ).build()
+            builder.addAction(copyOtpAction)
+        }
 
         if (lockScreenPrivacy) {
             builder.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

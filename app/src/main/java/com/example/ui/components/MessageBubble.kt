@@ -29,7 +29,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,7 +70,16 @@ fun MessageBubble(
     onRetryClick: (Message) -> Unit,
     modifier: Modifier = Modifier,
     reaction: String? = null,
-    onReactionClick: ((Message) -> Unit)? = null
+    onReactionClick: ((Message) -> Unit)? = null,
+    fontScale: Float = 1.0f,
+    isPlayingAudio: Boolean = false,
+    audioProgress: Float = 0f,
+    audioCurrentMs: Int = 0,
+    audioDurationMs: Int = 0,
+    playbackSpeed: Float = 1.0f,
+    onPlayAudioClick: ((Message) -> Unit)? = null,
+    onToggleAudioSpeed: (() -> Unit)? = null,
+    onSeekAudio: ((Float) -> Unit)? = null
 ) {
     val colors = LocalSalimColors.current
     val context = LocalContext.current
@@ -87,6 +98,12 @@ fun MessageBubble(
         if (message.isIncoming) OtpHelper.extractOtp(message.body) else null
     }
 
+    val isAudioAttachment = remember(message.mediaUri, message.mediaMimeType) {
+        val mime = message.mediaMimeType?.lowercase() ?: ""
+        val uriStr = message.mediaUri?.toString()?.lowercase() ?: ""
+        mime.startsWith("audio/") || uriStr.endsWith(".m4a") || uriStr.endsWith(".mp3") || uriStr.endsWith(".aac") || uriStr.endsWith(".wav") || uriStr.endsWith(".3gp") || uriStr.contains("audio")
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -96,13 +113,15 @@ fun MessageBubble(
         Box {
             Box(
                 modifier = Modifier
-                    .widthIn(max = 290.dp)
+                    .widthIn(max = 300.dp)
                     .clip(bubbleShape)
                     .background(bubbleBg)
                     .applePressable(
                         pressedScale = 0.98f,
                         onClick = {
-                            if (message.mediaUri != null) {
+                            if (isAudioAttachment && message.mediaUri != null) {
+                                onPlayAudioClick?.invoke(message)
+                            } else if (message.mediaUri != null) {
                                 onMediaClick(message)
                             } else if (message.status == MessageStatus.FAILED && isOutgoing) {
                                 onRetryClick(message)
@@ -113,12 +132,26 @@ fun MessageBubble(
                     .padding(
                         start = 14.dp,
                         end = 14.dp,
-                        top = if (message.mediaUri != null) 6.dp else 9.dp,
+                        top = if (message.mediaUri != null) 8.dp else 9.dp,
                         bottom = 9.dp
                     )
             ) {
             Column {
-                if (message.mediaUri != null) {
+                if (isAudioAttachment && message.mediaUri != null) {
+                    // Apple-style Voice Note Audio Player
+                    VoiceNotePlayerBubble(
+                        isOutgoing = isOutgoing,
+                        isPlaying = isPlayingAudio,
+                        progress = audioProgress,
+                        currentMs = audioCurrentMs,
+                        durationMs = audioDurationMs,
+                        speed = playbackSpeed,
+                        onPlayPauseClick = { onPlayAudioClick?.invoke(message) },
+                        onToggleSpeed = { onToggleAudioSpeed?.invoke() },
+                        onSeek = { onSeekAudio?.invoke(it) }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                } else if (message.mediaUri != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(message.mediaUri)
@@ -197,8 +230,8 @@ fun MessageBubble(
                         text = message.body,
                         style = MaterialTheme.typography.bodyLarge,
                         color = textColor,
-                        fontSize = 16.sp,
-                        lineHeight = 22.sp
+                        fontSize = (16 * fontScale).sp,
+                        lineHeight = (22 * fontScale).sp
                     )
                 }
 
@@ -320,6 +353,123 @@ fun MessageBubble(
         }
     }
 }
+}
+
+@Composable
+private fun VoiceNotePlayerBubble(
+    isOutgoing: Boolean,
+    isPlaying: Boolean,
+    progress: Float,
+    currentMs: Int,
+    durationMs: Int,
+    speed: Float,
+    onPlayPauseClick: () -> Unit,
+    onToggleSpeed: () -> Unit,
+    onSeek: (Float) -> Unit
+) {
+    val colors = LocalSalimColors.current
+
+    val contentColor = if (isOutgoing) Color.White else colors.textPrimary
+    val activeWaveColor = if (isOutgoing) Color.White else colors.accent
+    val inactiveWaveColor = if (isOutgoing) Color.White.copy(alpha = 0.35f) else colors.textSecondary.copy(alpha = 0.30f)
+
+    val waveHeights = remember {
+        listOf(6, 12, 18, 14, 22, 16, 26, 19, 14, 24, 28, 18, 12, 22, 16, 10, 15, 20, 12, 8)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(SquircleButtonShape)
+            .background(if (isOutgoing) Color.White.copy(alpha = 0.18f) else colors.surfaceVariant.copy(alpha = 0.65f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Play / Pause Circle Button
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (isOutgoing) Color.White else colors.accent)
+                .applePressable(onClick = onPlayPauseClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pause" else "Play",
+                tint = if (isOutgoing) colors.bubbleOutgoing else Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Sound waveform bars & Duration text
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(26.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val activeBarIndex = (progress * waveHeights.size).toInt()
+                waveHeights.forEachIndexed { index, heightDp ->
+                    val isActive = index <= activeBarIndex && (isPlaying || progress > 0f)
+                    Box(
+                        modifier = Modifier
+                            .width(2.5.dp)
+                            .height(heightDp.dp)
+                            .clip(CircleShape)
+                            .background(if (isActive) activeWaveColor else inactiveWaveColor)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            val displaySec = if (isPlaying && currentMs > 0) currentMs / 1000 else if (durationMs > 0) durationMs / 1000 else 0
+            val totalSec = if (durationMs > 0) durationMs / 1000 else 0
+            val timeText = if (isPlaying) {
+                String.format(Locale.getDefault(), "%d:%02d / %d:%02d", displaySec / 60, displaySec % 60, totalSec / 60, totalSec % 60)
+            } else {
+                String.format(Locale.getDefault(), "%d:%02d Voice Note", totalSec / 60, totalSec % 60)
+            }
+
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isOutgoing) Color.White.copy(alpha = 0.85f) else colors.textSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Speed Toggle Button (1x / 1.5x / 2x)
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (isOutgoing) Color.White.copy(alpha = 0.25f) else colors.accent.copy(alpha = 0.15f))
+                .clickable(onClick = onToggleSpeed)
+                .padding(horizontal = 7.dp, vertical = 3.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val speedLabel = when (speed) {
+                1.5f -> "1.5x"
+                2.0f -> "2x"
+                else -> "1x"
+            }
+            Text(
+                text = speedLabel,
+                color = contentColor,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.5.sp
+            )
+        }
+    }
 }
 
 private fun formatMessageTime(timestamp: Long): String {

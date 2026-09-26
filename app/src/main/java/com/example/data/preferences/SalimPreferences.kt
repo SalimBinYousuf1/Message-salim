@@ -51,7 +51,9 @@ data class SalimSettings(
     val deliverySoundsEnabled: Boolean = true,
     val defaultSubId: Int = -1,
     val sortOrder: ConversationSortOrder = ConversationSortOrder.RECENT,
-    val vibrationEnabled: Boolean = true
+    val vibrationEnabled: Boolean = true,
+    val fontSizeScale: Float = 1.0f,
+    val spamProtectionEnabled: Boolean = true
 )
 
 class PreferencesRepository(private val context: Context) {
@@ -72,6 +74,8 @@ class PreferencesRepository(private val context: Context) {
         val DEFAULT_SUB_ID = intPreferencesKey("default_sub_id")
         val SORT_ORDER = stringPreferencesKey("sort_order")
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
+        val FONT_SIZE_SCALE = androidx.datastore.preferences.core.floatPreferencesKey("font_size_scale")
+        val SPAM_PROTECTION = booleanPreferencesKey("spam_protection")
     }
 
     val settingsFlow: Flow<SalimSettings> = context.dataStore.data.map { preferences ->
@@ -102,7 +106,9 @@ class PreferencesRepository(private val context: Context) {
             deliverySoundsEnabled = preferences[PreferencesKeys.DELIVERY_SOUNDS] ?: true,
             defaultSubId = preferences[PreferencesKeys.DEFAULT_SUB_ID] ?: -1,
             sortOrder = sortOrder,
-            vibrationEnabled = preferences[PreferencesKeys.VIBRATION_ENABLED] ?: true
+            vibrationEnabled = preferences[PreferencesKeys.VIBRATION_ENABLED] ?: true,
+            fontSizeScale = preferences[PreferencesKeys.FONT_SIZE_SCALE] ?: 1.0f,
+            spamProtectionEnabled = preferences[PreferencesKeys.SPAM_PROTECTION] ?: true
         )
     }
 
@@ -164,5 +170,13 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun updateDefaultSubId(subId: Int) {
         context.dataStore.edit { it[PreferencesKeys.DEFAULT_SUB_ID] = subId }
+    }
+
+    suspend fun updateFontSizeScale(scale: Float) {
+        context.dataStore.edit { it[PreferencesKeys.FONT_SIZE_SCALE] = scale.coerceIn(0.80f, 1.40f) }
+    }
+
+    suspend fun updateSpamProtection(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.SPAM_PROTECTION] = enabled }
     }
 }

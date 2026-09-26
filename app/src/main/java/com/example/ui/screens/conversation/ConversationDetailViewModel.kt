@@ -1,6 +1,7 @@
 package com.example.ui.screens.conversation
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -218,6 +219,10 @@ class ConversationDetailViewModel(
         }
     }
 
+    fun playVoiceNote(context: Context, uri: Uri) {
+        audioPlayer.playUri(context, uri)
+    }
+
     init {
         loadSimCardsAndMetadata()
         checkBlockedStatus()
@@ -384,6 +389,25 @@ class ConversationDetailViewModel(
                 )
                 _isBlockedState.value = true
             }
+        }
+    }
+
+    fun blockContact() {
+        viewModelScope.launch {
+            blockedDao.block(
+                BlockedContact(
+                    address = initialAddress,
+                    displayName = uiState.value.displayName
+                )
+            )
+            _isBlockedState.value = true
+        }
+    }
+
+    fun unblockContact() {
+        viewModelScope.launch {
+            blockedDao.unblock(initialAddress)
+            _isBlockedState.value = false
         }
     }
 

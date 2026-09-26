@@ -3,6 +3,8 @@ package com.example.telephony
 import android.content.Context
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.PlaybackParams
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -116,17 +118,98 @@ class AudioPlayerHelper {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _activeUri = MutableStateFlow<Uri?>(null)
+    val activeUri: StateFlow<Uri?> = _activeUri.asStateFlow()
+
     private val _progressFraction = MutableStateFlow(0f)
     val progressFraction: StateFlow<Float> = _progressFraction.asStateFlow()
+
+    private val _currentPositionMs = MutableStateFlow(0)
+    val currentPositionMs: StateFlow<Int> = _currentPositionMs.asStateFlow()
+
+    private val _durationMs = MutableStateFlow(0)
+    val durationMs: StateFlow<Int> = _durationMs.asStateFlow()
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
     private val handler = Handler(Looper.getMainLooper())
     private val progressRunnable = object : Runnable {
         override fun run() {
             mediaPlayer?.let { player ->
                 if (player.isPlaying && player.duration > 0) {
+                    _currentPositionMs.value = player.currentPosition
+                    _durationMs.value = player.duration
                     _progressFraction.value = (player.currentPosition.toFloat() / player.duration.toFloat()).coerceIn(0f, 1f)
-                    handler.postDelayed(this, 100)
+                    handler.postDelayed(this, 60)
                 }
+            }
+        }
+    }
+
+    fun playUri(context: Context, uri: Uri, onFinished: () -> Unit = {}) {
+        if (_activeUri.value == uri && mediaPlayer != null) {
+            if (_isPlaying.value) {
+                pause()
+            } else {
+                resume()
+            }
+            return
+        }
+
+        stop()
+        try {
+            _activeUri.value = uri
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(context, uri)
+                prepare()
+                _durationMs.value = duration
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    playbackParams = PlaybackParams().apply { speed = _playbackSpeed.value }
+                }
+                setOnCompletionListener {
+                    _isPlaying.value = false
+                    _progressFraction.value = 0f
+                    _currentPositionMs.value = 0
+                    handler.removeCallbacks(progressRunnable)
+                    onFinished()
+                }
+                start()
+            }
+            _isPlaying.value = true
+            handler.post(progressRunnable)
+        } catch (e: Exception) {
+            stop()
+        }
+    }
+
+    fun toggleSpeed() {
+        val nextSpeed = when (_playbackSpeed.value) {
+            1.0f -> 1.5f
+            1.5f -> 2.0f
+            else -> 1.0f
+        }
+        _playbackSpeed.value = nextSpeed
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        it.playbackParams = PlaybackParams().apply { speed = nextSpeed }
+                    }
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    fun seekTo(fraction: Float) {
+        mediaPlayer?.let { player ->
+            if (player.duration > 0) {
+                val targetMs = (fraction * player.duration).toInt()
+                player.seekTo(targetMs)
+                _progressFraction.value = fraction.coerceIn(0f, 1f)
+                _currentPositionMs.value = targetMs
             }
         }
     }
@@ -137,9 +220,11 @@ class AudioPlayerHelper {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(filePath)
                 prepare()
+                _durationMs.value = duration
                 setOnCompletionListener {
                     _isPlaying.value = false
                     _progressFraction.value = 0f
+                    _currentPositionMs.value = 0
                     handler.removeCallbacks(progressRunnable)
                     onFinished()
                 }
@@ -173,7 +258,9 @@ class AudioPlayerHelper {
             // ignore
         }
         mediaPlayer = null
+        _activeUri.value = null
         _isPlaying.value = false
         _progressFraction.value = 0f
+        _currentPositionMs.value = 0
     }
 }

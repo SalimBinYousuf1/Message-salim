@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,15 +84,20 @@ fun ComposerBar(
         SmsLengthCalculator.calculate(text)
     }
 
-    LiquidGlassSurface(
-        glassOpacity = glassOpacity,
-        reducedTransparency = reducedTransparency,
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .imePadding()
+            .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        LiquidGlassSurface(
+            shape = SquirclePillShape,
+            glassOpacity = 0.85f,
+            reducedTransparency = reducedTransparency,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
             // Attachment Preview Bar
             if (attachedMediaUri != null) {
                 Box(
@@ -310,21 +316,30 @@ fun ComposerBar(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Text Field Capsule with continuous squircle curvature
+                    // Text Field Capsule with continuous squircle curvature and frosted glass material
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 38.dp, max = 120.dp)
                             .clip(SquirclePillShape)
-                            .background(colors.surface)
+                            .background(
+                                if (colors.isDark) Color(0xFF222226).copy(alpha = 0.72f)
+                                else Color(0xFFFFFFFF).copy(alpha = 0.78f),
+                                SquirclePillShape
+                            )
+                            .border(
+                                width = 0.8.dp,
+                                color = if (colors.isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.85f),
+                                shape = SquirclePillShape
+                            )
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (text.isEmpty()) {
                             Text(
-                                text = "Text Message",
+                                text = "iMessage",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textSecondary.copy(alpha = 0.8f),
+                                color = colors.textSecondary.copy(alpha = 0.75f),
                                 fontSize = 15.sp
                             )
                         }
@@ -387,4 +402,5 @@ fun ComposerBar(
             }
         }
     }
+}
 }

@@ -37,7 +37,8 @@ data class ConversationListUiState(
     val hasSmsPermission: Boolean = true,
     val selectedThreadIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false,
-    val isBiometricUnlocked: Boolean = true
+    val isBiometricUnlocked: Boolean = true,
+    val unreadCounts: Map<ConversationCategoryFilter, Int> = emptyMap()
 )
 
 class ConversationListViewModel(application: Application) : AndroidViewModel(application) {
@@ -69,8 +70,9 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
         telephonyRepo.conversationsFlow,
         blockedDao.getAllBlockedFlow(),
         _filterState,
-        _systemStatus
-    ) { conversations, blockedList, filter, status ->
+        _systemStatus,
+        preferencesRepo.settingsFlow
+    ) { conversations, blockedList, filter, status, prefs ->
         val (query, category, selectedIds) = filter
         val (hasPerm, isDefault, unlocked) = status
 
@@ -106,11 +108,34 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
             matchesCategory && matchesQuery
         }
 
-        val pinned = filtered.filter { it.isPinned }
-        val unpinned = filtered.filter { !it.isPinned }
+        // Apply sort order
+        val sorted = when (prefs.sortOrder) {
+            com.example.data.preferences.ConversationSortOrder.RECENT -> filtered.sortedByDescending { it.date }
+            com.example.data.preferences.ConversationSortOrder.UNREAD_FIRST -> filtered.sortedWith(
+                compareByDescending<Conversation> { it.unreadCount > 0 }
+                    .thenByDescending { it.date }
+            )
+            com.example.data.preferences.ConversationSortOrder.NAME_AZ -> filtered.sortedWith(
+                compareBy<Conversation> { it.displayName.lowercase() }
+                    .thenByDescending { it.date }
+            )
+        }
+
+        val pinned = sorted.filter { it.isPinned }
+        val unpinned = sorted.filter { !it.isPinned }
+
+        val categoryUnreadMap = ConversationCategoryFilter.entries.associateWith { cat ->
+            when (cat) {
+                ConversationCategoryFilter.ALL -> activeList.count { !it.isArchived && it.unreadCount > 0 }
+                ConversationCategoryFilter.ARCHIVED -> activeList.count { it.isArchived && it.unreadCount > 0 }
+                ConversationCategoryFilter.PERSONAL -> activeList.count { !it.isArchived && !OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.displayName != it.address && it.unreadCount > 0 }
+                ConversationCategoryFilter.TRANSACTIONS -> activeList.count { !it.isArchived && OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.unreadCount > 0 }
+                ConversationCategoryFilter.UNKNOWN -> activeList.count { !it.isArchived && !OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.displayName == it.address && it.unreadCount > 0 }
+            }
+        }
 
         ConversationListUiState(
-            conversations = filtered,
+            conversations = sorted,
             pinnedConversations = pinned,
             unpinnedConversations = unpinned,
             searchQuery = query,
@@ -119,7 +144,8 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
             hasSmsPermission = hasPerm,
             selectedThreadIds = selectedIds,
             isSelectionMode = selectedIds.isNotEmpty(),
-            isBiometricUnlocked = unlocked
+            isBiometricUnlocked = unlocked,
+            unreadCounts = categoryUnreadMap
         )
     }.stateIn(
         scope = viewModelScope,
@@ -192,6 +218,31 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
 
     fun clearSelection() {
         _selectedThreadIds.value = emptySet()
+    }
+
+    fun selectAll() {
+        val allIds = uiState.value.conversations.map { it.threadId }.toSet()
+        _selectedThreadIds.value = allIds
+    }
+
+    fun deselectAll() {
+        _selectedThreadIds.value = emptySet()
+    }
+
+    fun markAllAsRead() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cv = ContentValues().apply { put(Telephony.Sms.READ, 1) }
+                app.contentResolver.update(
+                    Telephony.Sms.CONTENT_URI,
+                    cv,
+                    "${Telephony.Sms.READ} = 0",
+                    null
+                )
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
     }
 
     fun deleteSelectedThreads() {

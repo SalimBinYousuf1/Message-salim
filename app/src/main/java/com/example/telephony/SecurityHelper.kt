@@ -19,14 +19,8 @@ object SecurityHelper {
     }
 
     fun applyWindowSecurity(activity: Activity, enable: Boolean) {
-        if (enable) {
-            activity.window.setFlags(
-                WindowManager.LayoutParams.FLAG_SECURE,
-                WindowManager.LayoutParams.FLAG_SECURE
-            )
-        } else {
-            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        // We do not set unconditional FLAG_SECURE on the active window because it blacks out the
+        // streaming display and canvas. App Switcher privacy is handled at lifecycle pause level.
     }
 
     @RequiresApi(Build.VERSION_CODES.P)

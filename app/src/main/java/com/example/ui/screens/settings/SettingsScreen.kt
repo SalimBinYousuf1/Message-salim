@@ -4,6 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +45,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -53,8 +58,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -79,13 +82,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.BlockedContact
 import com.example.data.preferences.AccentPalette
-import com.example.data.preferences.AmbientBackgroundMode
+import com.example.data.preferences.ConversationSortOrder
 import com.example.data.preferences.ThemeMode
 import com.example.telephony.SmsHelper
 import com.example.ui.components.AgslAmbientBackground
 import com.example.ui.components.SalimDetailTopBar
 import com.example.ui.components.SquircleButtonShape
 import com.example.ui.components.SquircleCardShape
+import com.example.ui.components.SquirclePillShape
 import com.example.ui.theme.LocalSalimColors
 import kotlinx.coroutines.launch
 
@@ -236,16 +240,6 @@ fun SettingsScreen(
 
                         HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
 
-                        // Pure Black OLED Toggle
-                        SettingsToggleRow(
-                            title = "Pure Black OLED Dark Mode",
-                            subtitle = "Zero pixel emission (#000000) for OLED panels",
-                            checked = settings.pureBlackOled,
-                            onCheckedChange = { viewModel.setPureBlackOled(it) }
-                        )
-
-                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-
                         // Accent Color Palette Picker
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -294,80 +288,6 @@ fun SettingsScreen(
 
                         HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
 
-                        // AGSL Ambient Background Mode
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Ambient AGSL Background",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.textPrimary,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = "Real GPU RuntimeShader with organic multi-octave FBM fluid motion",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                                modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
-                            )
-                            AmbientBgSegmentedControl(
-                                currentMode = settings.ambientBackground,
-                                onModeSelected = { viewModel.setAmbientBackground(it) }
-                            )
-                        }
-
-                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        // Reduced Transparency
-                        SettingsToggleRow(
-                            title = "Reduce Transparency",
-                            subtitle = "Use solid surfaces instead of liquid translucent material",
-                            checked = settings.reducedTransparency,
-                            onCheckedChange = { viewModel.setReducedTransparency(it) }
-                        )
-
-                        if (!settings.reducedTransparency) {
-                            HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Liquid Glass Opacity",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = colors.textPrimary,
-                                        fontSize = 15.sp
-                                    )
-                                    Text(
-                                        text = "${(settings.glassOpacity * 100).toInt()}%",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.accent,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Text(
-                                    text = "Dial the physical glass effect from translucent to near-opaque",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
-                                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                                )
-                                Slider(
-                                    value = settings.glassOpacity,
-                                    onValueChange = { viewModel.setGlassOpacity(it) },
-                                    valueRange = 0.25f..0.98f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = colors.accent,
-                                        activeTrackColor = colors.accent,
-                                        inactiveTrackColor = colors.surfaceVariant
-                                    )
-                                )
-                            }
-                        }
-
-                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-
                         // Reduced Motion
                         SettingsToggleRow(
                             title = "Reduce Motion",
@@ -375,6 +295,31 @@ fun SettingsScreen(
                             checked = settings.reducedMotion,
                             onCheckedChange = { viewModel.setReducedMotion(it) }
                         )
+                    }
+                }
+
+                // Conversation Sorting Group
+                item {
+                    SettingsSectionTitle("CONVERSATION SORTING")
+                    SettingsGroupCard {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Sort Messages By",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.textPrimary,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "Choose how conversations are ordered in the main list",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                            )
+                            ConversationSortSegmentedControl(
+                                currentSort = settings.sortOrder,
+                                onSortSelected = { viewModel.setSortOrder(it) }
+                            )
+                        }
                     }
                 }
 
@@ -392,10 +337,10 @@ fun SettingsScreen(
 
                         HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
 
-                        // Screen Privacy Shield (FLAG_SECURE)
+                        // Screen Privacy Shield
                         SettingsToggleRow(
                             title = "Privacy Shield in App Switcher",
-                            subtitle = "Hides conversation content in recent apps and blocks screenshots",
+                            subtitle = "Hides conversation content in recent apps preview",
                             checked = settings.flagSecureEnabled,
                             onCheckedChange = { viewModel.setFlagSecure(it) }
                         )
@@ -411,10 +356,119 @@ fun SettingsScreen(
                     }
                 }
 
-                // Haptics & Sounds Group
+                // Notifications & Sounds Group
                 item {
-                    SettingsSectionTitle("HAPTICS & SOUNDS")
+                    SettingsSectionTitle("NOTIFICATIONS & SOUNDS")
                     SettingsGroupCard {
+                        val defaultNotificationUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                        val ringtone = remember(context) {
+                            try {
+                                RingtoneManager.getRingtone(context, defaultNotificationUri)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        val ringtoneTitle = remember(ringtone) {
+                            ringtone?.getTitle(context) ?: "Phone Message Tune"
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(SquircleButtonShape)
+                                    .background(colors.accent.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Phone Message Tune",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.textPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = ringtoneTitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    try {
+                                        ringtone?.stop()
+                                        ringtone?.play()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Playing message tone", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent.copy(alpha = 0.15f)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = SquirclePillShape
+                            ) {
+                                Text("Play Tune", color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        SettingsToggleRow(
+                            title = "Vibration on New Message",
+                            subtitle = "Use phone's haptic motor when message arrives",
+                            checked = settings.vibrationEnabled,
+                            onCheckedChange = { viewModel.setVibration(it) }
+                        )
+
+                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+                                        vm?.defaultVibrator
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 120, 80, 120), -1))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator?.vibrate(200)
+                                    }
+                                    Toast.makeText(context, "Tested message vibration pattern", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Test Message Vibration Pattern",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.accent,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
                         SettingsToggleRow(
                             title = "Haptic Feedback",
                             subtitle = "Sensory feedback when sending messages and long-pressing items",
@@ -812,7 +866,7 @@ private fun ThemeModeSegmentedControl(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(SquircleButtonShape)
+            .clip(SquirclePillShape)
             .background(colors.surfaceVariant.copy(alpha = 0.5f))
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -822,7 +876,7 @@ private fun ThemeModeSegmentedControl(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(SquircleButtonShape)
+                    .clip(SquirclePillShape)
                     .background(if (isSelected) colors.surface else Color.Transparent)
                     .clickable { onModeSelected(mode) }
                     .padding(vertical = 8.dp),
@@ -842,34 +896,37 @@ private fun ThemeModeSegmentedControl(
 }
 
 @Composable
-private fun AmbientBgSegmentedControl(
-    currentMode: AmbientBackgroundMode,
-    onModeSelected: (AmbientBackgroundMode) -> Unit
+private fun ConversationSortSegmentedControl(
+    currentSort: ConversationSortOrder,
+    onSortSelected: (ConversationSortOrder) -> Unit
 ) {
     val colors = LocalSalimColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(SquirclePillShape)
             .background(colors.surfaceVariant.copy(alpha = 0.5f))
-            .padding(2.dp)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        AmbientBackgroundMode.entries.forEach { mode ->
-            val isSelected = currentMode == mode
+        ConversationSortOrder.entries.forEach { sort ->
+            val isSelected = currentSort == sort
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(SquirclePillShape)
                     .background(if (isSelected) colors.surface else Color.Transparent)
-                    .clickable { onModeSelected(mode) }
+                    .clickable { onSortSelected(sort) }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
+                    text = sort.title,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) colors.textPrimary else colors.textSecondary
+                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                    fontSize = 12.sp,
+                    maxLines = 1
                 )
             }
         }

@@ -273,19 +273,22 @@ fun SalimShaderBackground(
     content: @Composable BoxScope.() -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "salim_shader_time")
-    val time by if (reducedMotion) {
+    val rawTime by if (reducedMotion) {
         remember { androidx.compose.runtime.mutableFloatStateOf(10f) }
     } else {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 600f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 60000, easing = LinearEasing),
+                animation = tween(durationMillis = 180000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "time"
         )
     }
+
+    // Gentle, calm time scaling so the chromatic clouds glide soothingly
+    val time = rawTime * 0.12f
 
     Box(modifier = modifier.fillMaxSize()) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -299,6 +302,7 @@ fun SalimShaderBackground(
 
             if (runtimeShader != null) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawRect(color = Color(0xFFFAFBFC))
                     runtimeShader.setFloatUniform("resolution", size.width, size.height)
                     runtimeShader.setFloatUniform("time", time)
                     drawRect(brush = ShaderBrush(runtimeShader))
@@ -439,14 +443,15 @@ fun AgslAmbientBackground(
         return
     }
 
+    val salimColors = LocalSalimColors.current
+
     if (mode == AmbientBackgroundMode.OFF) {
-        Box(modifier = modifier) {
+        Box(modifier = modifier.fillMaxSize().background(salimColors.background)) {
             content()
         }
         return
     }
 
-    val salimColors = LocalSalimColors.current
     val infiniteTransition = rememberInfiniteTransition(label = "ambient_motion")
 
     val animProgress by if (reducedMotion) {
@@ -479,6 +484,7 @@ fun AgslAmbientBackground(
 
             if (runtimeShader != null) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawRect(color = salimColors.background)
                     runtimeShader.setFloatUniform("iResolution", size.width, size.height)
                     runtimeShader.setFloatUniform("iTime", animProgress)
                     val c1 = accent.copy(alpha = if (isDark) 0.35f else 0.22f).toArgb()
@@ -490,10 +496,10 @@ fun AgslAmbientBackground(
                     drawRect(brush = ShaderBrush(runtimeShader))
                 }
             } else {
-                FallbackCanvasAtmosphere(isDark, accent, intensity, animProgress)
+                FallbackCanvasAtmosphere(isDark, accent, intensity, animProgress, salimColors.background)
             }
         } else {
-            FallbackCanvasAtmosphere(isDark, accent, intensity, animProgress)
+            FallbackCanvasAtmosphere(isDark, accent, intensity, animProgress, salimColors.background)
         }
 
         Box(modifier = Modifier.fillMaxSize(), content = content)
@@ -505,10 +511,12 @@ private fun FallbackCanvasAtmosphere(
     isDark: Boolean,
     accent: Color,
     intensity: Float,
-    time: Float
+    time: Float,
+    backgroundColor: Color
 ) {
     val phase = (time % 10f) / 10f
     Canvas(modifier = Modifier.fillMaxSize()) {
+        drawRect(color = backgroundColor)
         val w = size.width
         val h = size.height
 

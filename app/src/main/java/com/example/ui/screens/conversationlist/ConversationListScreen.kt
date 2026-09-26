@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -55,6 +56,8 @@ import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +71,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -163,6 +169,7 @@ fun ConversationListScreen(
     var threadToDelete by remember { mutableStateOf<Conversation?>(null) }
     var actionSheetThread by remember { mutableStateOf<Conversation?>(null) }
     var showBulkDeleteDialog by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     val isScrolled by remember {
@@ -183,7 +190,7 @@ fun ConversationListScreen(
                     title = if (uiState.isSelectionMode) {
                         "${uiState.selectedThreadIds.size} Selected"
                     } else {
-                        "Messages"
+                        "Salim"
                     },
                     isScrolled = isScrolled,
                     glassOpacity = settings.glassOpacity,
@@ -214,6 +221,64 @@ fun ConversationListScreen(
                                     tint = colors.textPrimary
                                 )
                             }
+                            Box {
+                                IconButton(onClick = { showMoreMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More Options",
+                                        tint = colors.textPrimary
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMoreMenu,
+                                    onDismissRequest = { showMoreMenu = false },
+                                    modifier = Modifier
+                                        .clip(SquircleCardShape)
+                                        .background(if (colors.isDark) Color(0xFF1E1E22).copy(alpha = 0.95f) else Color(0xFFF9F9FB).copy(alpha = 0.96f))
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Mark All as Read", color = colors.textPrimary, fontWeight = FontWeight.Medium) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.MarkEmailRead,
+                                                contentDescription = null,
+                                                tint = colors.accent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            viewModel.markAllAsRead()
+                                        }
+                                    )
+                                    val isAllSelected = uiState.selectedThreadIds.size == uiState.conversations.size && uiState.conversations.isNotEmpty()
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (isAllSelected) "Deselect All" else "Select All",
+                                                color = colors.textPrimary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isAllSelected) Icons.Default.RadioButtonUnchecked else Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = colors.accent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            if (isAllSelected) {
+                                                viewModel.deselectAll()
+                                            } else {
+                                                viewModel.selectAll()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 )
@@ -241,56 +306,91 @@ fun ConversationListScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Search Field Capsule
-                Box(
+                // Apple-Inspired iOS Clean Non-Jumbling Search Bar
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        placeholder = {
-                            Text(
-                                text = "Search",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textSecondary
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                            .clip(SquirclePillShape)
+                            .background(
+                                if (colors.isDark) Color(0xFF2C2C2E).copy(alpha = 0.65f)
+                                else Color(0xFFE4E4E9).copy(alpha = 0.65f)
                             )
-                        },
-                        leadingIcon = {
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
+                                tint = colors.textSecondary.copy(alpha = 0.75f),
+                                modifier = Modifier.size(16.dp)
                             )
-                        },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotBlank()) {
-                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (uiState.searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = colors.textSecondary.copy(alpha = 0.7f),
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                BasicTextField(
+                                    value = uiState.searchQuery,
+                                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        color = colors.textPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Normal
+                                    ),
+                                    cursorBrush = SolidColor(colors.accent),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.textSecondary.copy(alpha = 0.35f))
+                                        .clickable { viewModel.onSearchQueryChanged("") },
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = colors.textSecondary,
-                                        modifier = Modifier.size(16.dp)
+                                        contentDescription = "Clear search",
+                                        tint = colors.surface,
+                                        modifier = Modifier.size(11.dp)
                                     )
                                 }
                             }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = colors.surface,
-                            unfocusedContainerColor = colors.surface,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedTextColor = colors.textPrimary,
-                            unfocusedTextColor = colors.textPrimary
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                    )
+                        }
+                    }
+
+                    if (uiState.searchQuery.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cancel",
+                            color = colors.accent,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 15.sp,
+                            modifier = Modifier
+                                .clickable { viewModel.onSearchQueryChanged("") }
+                                .padding(horizontal = 4.dp, vertical = 6.dp)
+                        )
+                    }
                 }
 
                 // Apple Segmented Filter Pills (All, Personal, Transactions, Unknown, Archived)
@@ -302,6 +402,7 @@ fun ConversationListScreen(
                         LiquidGlassChip(
                             label = category.label,
                             isSelected = uiState.categoryFilter == category,
+                            badgeCount = uiState.unreadCounts[category] ?: 0,
                             onClick = { viewModel.setCategoryFilter(category) }
                         )
                     }

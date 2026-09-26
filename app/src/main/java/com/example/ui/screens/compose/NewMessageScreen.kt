@@ -157,7 +157,8 @@ fun NewMessageScreen(
                                     ),
                                     cursorBrush = SolidColor(colors.accent),
                                     keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Phone,
+                                        keyboardType = KeyboardType.Text,
+                                        autoCorrectEnabled = false,
                                         imeAction = ImeAction.Done
                                     ),
                                     keyboardActions = KeyboardActions(

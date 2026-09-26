@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,7 +63,7 @@ fun LiquidGlassSurface(
         1.0f
     } else {
         val base = glassOpacity.coerceIn(0.20f, 0.98f)
-        if (isScrolled) (base + 0.14f).coerceAtMost(0.98f) else base
+        if (isScrolled) (base + 0.12f).coerceAtMost(0.96f) else 0.15f
     }
 
     val animatedAlpha by animateFloatAsState(
@@ -232,12 +234,12 @@ fun LiquidGlassButton(
 
 /**
  * Liquid Glass Segmented Tab Row.
- * Apple-style frosted segmented control container.
+ * Apple-style frosted segmented control container with round squircle curvature.
  */
 @Composable
 fun LiquidGlassTabRow(
     modifier: Modifier = Modifier,
-    shape: Shape = SquircleButtonShape,
+    shape: Shape = SquirclePillShape,
     content: @Composable RowScope.() -> Unit
 ) {
     val colors = LocalSalimColors.current
@@ -285,7 +287,7 @@ fun RowScope.LiquidGlassTab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     badgeCount: Int = 0,
-    shape: Shape = SquircleButtonShape
+    shape: Shape = SquirclePillShape
 ) {
     val colors = LocalSalimColors.current
     val isDark = colors.isDark
@@ -360,6 +362,7 @@ fun LiquidGlassBadge(
 
 /**
  * Liquid Glass Frost Filter Chip.
+ * Apple-grade round liquid glass frost pill with specular gloss and badge support.
  */
 @Composable
 fun LiquidGlassChip(
@@ -367,51 +370,93 @@ fun LiquidGlassChip(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = SquirclePillShape
+    badgeCount: Int = 0,
+    shape: Shape = CircleShape
 ) {
     val colors = LocalSalimColors.current
     val isDark = colors.isDark
 
     val chipBg = if (isSelected) {
-        colors.textPrimary
+        colors.accent
     } else if (isDark) {
-        Color(0xFF2C2C2E).copy(alpha = 0.65f)
+        Color(0xFF2C2C2E).copy(alpha = 0.60f)
     } else {
-        Color(0xFFFFFFFF).copy(alpha = 0.70f)
+        Color(0xFFFFFFFF).copy(alpha = 0.85f)
     }
 
     val chipText = if (isSelected) {
-        colors.background
+        Color.White
     } else {
         colors.textPrimary
+    }
+
+    val rimColor = if (isSelected) {
+        Color.White.copy(alpha = 0.35f)
+    } else if (isDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.White.copy(alpha = 0.95f)
     }
 
     Box(
         modifier = modifier
+            .defaultMinSize(minHeight = 36.dp)
             .clip(shape)
             .background(chipBg, shape)
+            .border(
+                width = 0.8.dp,
+                color = rimColor,
+                shape = shape
+            )
             .applePressable(onClick = onClick)
             .drawWithContent {
                 drawContent()
-                if (!isSelected) {
-                    val specularColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.8f)
-                    drawLine(
-                        brush = Brush.horizontalGradient(listOf(Color.Transparent, specularColor, Color.Transparent)),
-                        start = Offset(0f, 0.5f),
-                        end = Offset(size.width, 0.5f),
-                        strokeWidth = 0.8.dp.toPx()
-                    )
+                val specularColor = if (isSelected) {
+                    Color.White.copy(alpha = 0.40f)
+                } else if (isDark) {
+                    Color.White.copy(alpha = 0.16f)
+                } else {
+                    Color.White.copy(alpha = 0.85f)
                 }
+                drawLine(
+                    brush = Brush.horizontalGradient(listOf(Color.Transparent, specularColor, Color.Transparent)),
+                    start = Offset(0f, 1f),
+                    end = Offset(size.width, 1f),
+                    strokeWidth = 1.dp.toPx()
+                )
             }
             .padding(horizontal = 14.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            color = chipText,
-            fontSize = 13.sp
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                color = chipText,
+                fontSize = 13.5.sp
+            )
+            if (badgeCount > 0) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White.copy(alpha = 0.28f) else colors.accent)
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
     }
 }

@@ -105,17 +105,38 @@ interface BlockedContactDao {
     suspend fun unblock(address: String)
 }
 
+@Entity(tableName = "message_reactions")
+data class MessageReaction(
+    @PrimaryKey val messageId: Long,
+    val emoji: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface MessageReactionDao {
+    @Query("SELECT * FROM message_reactions")
+    fun getAllReactionsFlow(): Flow<List<MessageReaction>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setReaction(reaction: MessageReaction)
+
+    @Query("DELETE FROM message_reactions WHERE messageId = :messageId")
+    suspend fun removeReaction(messageId: Long)
+}
+
 @Database(
     entities = [
         ConversationMetadata::class,
         ScheduledMessage::class,
-        BlockedContact::class
+        BlockedContact::class,
+        MessageReaction::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun conversationDao(): ConversationDao
     abstract fun scheduledMessageDao(): ScheduledMessageDao
     abstract fun blockedContactDao(): BlockedContactDao
+    abstract fun messageReactionDao(): MessageReactionDao
 }

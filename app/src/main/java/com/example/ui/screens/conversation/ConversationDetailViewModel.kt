@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.SalimApplication
 import com.example.data.local.BlockedContact
+import com.example.data.local.MessageReaction
 import com.example.data.local.ScheduledMessage
 import com.example.data.model.Message
 import com.example.data.model.SimCardInfo
@@ -41,7 +42,10 @@ data class ConversationDetailUiState(
     val isRecordingVoice: Boolean = false,
     val recordingDurationSec: Int = 0,
     val recordingAmplitude: Float = 0f,
-    val replyingToMessage: Message? = null
+    val replyingToMessage: Message? = null,
+    val reactions: Map<Long, String> = emptyMap(),
+    val searchQuery: String = "",
+    val isSearching: Boolean = false
 )
 
 class ConversationDetailViewModel(
@@ -56,6 +60,7 @@ class ConversationDetailViewModel(
     private val scheduledDao = app.database.scheduledMessageDao()
     private val blockedDao = app.database.blockedContactDao()
     private val conversationDao = app.database.conversationDao()
+    private val reactionDao = app.database.messageReactionDao()
 
     val audioRecorder = AudioRecorderHelper(app)
     val audioPlayer = AudioPlayerHelper()
@@ -74,6 +79,8 @@ class ConversationDetailViewModel(
     private val _isBlockedState = MutableStateFlow(false)
     private val _isRecordingVoice = MutableStateFlow(false)
     private val _replyingToMessage = MutableStateFlow<Message?>(null)
+    private val _searchQuery = MutableStateFlow("")
+    private val _isSearching = MutableStateFlow(false)
 
     private data class ComposerData(
         val text: String,
@@ -116,11 +123,30 @@ class ConversationDetailViewModel(
         StatusData(selectedIds, blocked, scheduled)
     }
 
+    private data class SearchAndReactionData(
+        val reactions: Map<Long, String>,
+        val searchQuery: String,
+        val isSearching: Boolean
+    )
+
+    private val _searchAndReactionData = combine(
+        reactionDao.getAllReactionsFlow(),
+        _searchQuery,
+        _isSearching
+    ) { reactionsList, query, searching ->
+        SearchAndReactionData(
+            reactions = reactionsList.associate { it.messageId to it.emoji },
+            searchQuery = query,
+            isSearching = searching
+        )
+    }
+
     val uiState: StateFlow<ConversationDetailUiState> = combine(
         _composerData,
         _simData,
-        _statusData
-    ) { composer, sim, status ->
+        _statusData,
+        _searchAndReactionData
+    ) { composer, sim, status, searchData ->
         val (name, photo) = SmsHelper.resolveContact(app, initialAddress)
         ConversationDetailUiState(
             threadId = initialThreadId,
@@ -140,12 +166,20 @@ class ConversationDetailViewModel(
             isRecordingVoice = composer.isRecording,
             recordingDurationSec = audioRecorder.recordingDurationSeconds.value,
             recordingAmplitude = audioRecorder.currentAmplitude.value,
-            replyingToMessage = composer.replyingTo
+            replyingToMessage = composer.replyingTo,
+            reactions = searchData.reactions,
+            searchQuery = searchData.searchQuery,
+            isSearching = searchData.isSearching
         )
     }.combine(
         telephonyRepo.getMessagesFlow(initialThreadId)
     ) { baseState, messages ->
-        baseState.copy(messages = messages)
+        val displayedMessages = if (baseState.isSearching && baseState.searchQuery.isNotBlank()) {
+            messages.filter { it.body.contains(baseState.searchQuery, ignoreCase = true) }
+        } else {
+            messages
+        }
+        baseState.copy(messages = displayedMessages)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -155,6 +189,34 @@ class ConversationDetailViewModel(
             displayName = initialAddress
         )
     )
+
+    fun setReaction(messageId: Long, emoji: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentEmoji = uiState.value.reactions[messageId]
+            if (currentEmoji == emoji) {
+                reactionDao.removeReaction(messageId)
+            } else {
+                reactionDao.setReaction(MessageReaction(messageId = messageId, emoji = emoji))
+            }
+        }
+    }
+
+    fun removeReaction(messageId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            reactionDao.removeReaction(messageId)
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun toggleSearch(active: Boolean) {
+        _isSearching.value = active
+        if (!active) {
+            _searchQuery.value = ""
+        }
+    }
 
     init {
         loadSimCardsAndMetadata()

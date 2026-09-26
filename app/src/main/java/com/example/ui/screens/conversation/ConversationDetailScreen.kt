@@ -11,7 +11,13 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +36,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
@@ -41,6 +48,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,8 +75,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -111,6 +121,8 @@ fun ConversationDetailScreen(
     var showDetailsSheet by remember { mutableStateOf<Message?>(null) }
     var showContactInfoSheet by remember { mutableStateOf(false) }
     var showScheduleSheet by remember { mutableStateOf(false) }
+    var showAttachSheet by remember { mutableStateOf(false) }
+    var hasScrolledInitially by remember { mutableStateOf(false) }
 
     // Android Zero-Permission Photo Picker
     val mediaPickerLauncher = rememberLauncherForActivityResult(
@@ -118,6 +130,64 @@ fun ConversationDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.onMediaAttached(uri)
+        }
+    }
+
+    // Android Contact Picker for sending contacts from contact list
+    val contactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickContact()
+    ) { contactUri: Uri? ->
+        if (contactUri != null) {
+            try {
+                var contactName = ""
+                var contactPhone = ""
+                val cursor = context.contentResolver.query(
+                    contactUri,
+                    arrayOf(
+                        android.provider.ContactsContract.Contacts._ID,
+                        android.provider.ContactsContract.Contacts.DISPLAY_NAME,
+                        android.provider.ContactsContract.Contacts.HAS_PHONE_NUMBER
+                    ),
+                    null, null, null
+                )
+                var hasPhone = 0
+                var contactId = ""
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        contactId = it.getString(it.getColumnIndexOrThrow(android.provider.ContactsContract.Contacts._ID))
+                        contactName = it.getString(it.getColumnIndexOrThrow(android.provider.ContactsContract.Contacts.DISPLAY_NAME)) ?: ""
+                        hasPhone = it.getInt(it.getColumnIndexOrThrow(android.provider.ContactsContract.Contacts.HAS_PHONE_NUMBER))
+                    }
+                }
+
+                if (hasPhone > 0 && contactId.isNotEmpty()) {
+                    val phoneCursor = context.contentResolver.query(
+                        android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                        "${android.provider.ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                        arrayOf(contactId),
+                        null
+                    )
+                    phoneCursor?.use {
+                        if (it.moveToFirst()) {
+                            contactPhone = it.getString(it.getColumnIndexOrThrow(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER)) ?: ""
+                        }
+                    }
+                }
+
+                if (contactPhone.isNotBlank()) {
+                    val vcard = com.example.telephony.VCardHelper.generateVCard(
+                        name = contactName.ifBlank { "Contact" },
+                        phone = contactPhone
+                    )
+                    viewModel.onComposerTextChanged(vcard)
+                    Toast.makeText(context, "Attached contact: ${contactName.ifBlank { contactPhone }}", Toast.LENGTH_SHORT).show()
+                } else if (contactName.isNotBlank()) {
+                    viewModel.onComposerTextChanged("Contact: $contactName")
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not load contact info", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -132,10 +202,15 @@ fun ConversationDetailScreen(
         }
     }
 
-    // Auto scroll to bottom when messages update
-    LaunchedEffect(uiState.messages.size) {
+    // Show latest message directly on initial open without auto-scrolling down from the top
+    LaunchedEffect(uiState.messages) {
         if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
+            if (!hasScrolledInitially) {
+                listState.scrollToItem(uiState.messages.size - 1)
+                hasScrolledInitially = true
+            } else {
+                listState.animateScrollToItem(uiState.messages.size - 1)
+            }
         }
     }
 
@@ -167,6 +242,13 @@ fun ConversationDetailScreen(
                         )
                     },
                     actions = {
+                        IconButton(onClick = { viewModel.toggleSearch(!uiState.isSearching) }) {
+                            Icon(
+                                imageVector = if (uiState.isSearching) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = if (uiState.isSearching) "Close Search" else "Search Chat",
+                                tint = colors.accent
+                            )
+                        }
                         if (uiState.address.isNotBlank()) {
                             IconButton(
                                 onClick = {
@@ -219,9 +301,7 @@ fun ConversationDetailScreen(
                             }
                         },
                         onAttachClick = {
-                            mediaPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                            )
+                            showAttachSheet = true
                         },
                         glassOpacity = settings.glassOpacity,
                         reducedTransparency = settings.reducedTransparency,
@@ -252,6 +332,99 @@ fun ConversationDetailScreen(
                     .padding(innerPadding)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    // Apple-style In-Chat Liquid Glass Search Bar
+                    AnimatedVisibility(
+                        visible = uiState.isSearching,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (colors.isDark) Color(0xFF2C2C2E).copy(alpha = 0.70f)
+                                        else Color(0xFFFFFFFF).copy(alpha = 0.85f)
+                                    )
+                                    .border(
+                                        width = 0.8.dp,
+                                        color = if (colors.isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f),
+                                        shape = CircleShape
+                                    )
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = colors.textSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    BasicTextField(
+                                        value = uiState.searchQuery,
+                                        onValueChange = { viewModel.setSearchQuery(it) },
+                                        textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
+                                        singleLine = true,
+                                        cursorBrush = SolidColor(colors.accent),
+                                        decorationBox = { innerTextField ->
+                                            if (uiState.searchQuery.isEmpty()) {
+                                                Text(
+                                                    text = "Search in conversation...",
+                                                    color = colors.textSecondary.copy(alpha = 0.6f),
+                                                    fontSize = 14.sp
+                                                )
+                                            }
+                                            innerTextField()
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (uiState.searchQuery.isNotEmpty()) {
+                                        Text(
+                                            text = "${uiState.messages.size} found",
+                                            color = colors.accent,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        IconButton(
+                                            onClick = { viewModel.setSearchQuery("") },
+                                            modifier = Modifier.size(20.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear",
+                                                tint = colors.textSecondary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Cancel",
+                                color = colors.accent,
+                                fontSize = 15.sp,
+                                modifier = Modifier
+                                    .clickable { viewModel.toggleSearch(false) }
+                                    .padding(horizontal = 4.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
                     // Pending Scheduled Messages Banner
                     if (uiState.pendingScheduled.isNotEmpty()) {
                         val firstScheduled = uiState.pendingScheduled.first()
@@ -332,6 +505,8 @@ fun ConversationDetailScreen(
                                     message = msg,
                                     isFirstInGroup = isFirstInGroup,
                                     isLastInGroup = isLastInGroup,
+                                    reaction = uiState.reactions[msg.id],
+                                    onReactionClick = { activeMessageForContext = it },
                                     onLongClick = { activeMessageForContext = it },
                                     onMediaClick = { it.mediaUri?.let { uri -> onMediaClick(uri) } },
                                     onRetryClick = { viewModel.retrySendMessage(it) }
@@ -447,6 +622,48 @@ fun ConversationDetailScreen(
                     maxLines = 2,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
+
+                // Apple Tapback Floating Reaction Bar
+                val currentReaction = uiState.reactions[message.id]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (colors.isDark) Color(0xFF2C2C2E).copy(alpha = 0.75f)
+                            else Color(0xFFF2F2F7)
+                        )
+                        .border(
+                            0.8.dp,
+                            if (colors.isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.8f),
+                            CircleShape
+                        )
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val reactions = listOf("❤️", "👍", "👎", "😂", "‼️", "❓")
+                    reactions.forEach { emoji ->
+                        val isSelected = currentReaction == emoji
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) colors.accent.copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable {
+                                    viewModel.setReaction(message.id, emoji)
+                                    activeMessageForContext = null
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = emoji,
+                                fontSize = if (isSelected) 24.sp else 20.sp
+                            )
+                        }
+                    }
+                }
 
                 HorizontalDivider(color = colors.divider, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
 
@@ -637,6 +854,125 @@ fun ConversationDetailScreen(
                 }
             }
         )
+    }
+
+    // Apple-style Frosted Attachment & Share Sheet (+ icon)
+    if (showAttachSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = colors.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Share & Attach",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // Photos & Videos option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachSheet = false
+                            mediaPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                            )
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column {
+                        Text("Photos & Videos", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                        Text("Send pictures or video clips from gallery", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                    }
+                }
+
+                HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                // Share Contact option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachSheet = false
+                            contactPickerLauncher.launch(null)
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF34C759).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color(0xFF34C759), modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column {
+                        Text("Share Contact", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                        Text("Send a contact card from your address book", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                    }
+                }
+
+                HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                // Schedule Send option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachSheet = false
+                            if (uiState.composerText.isNotBlank()) {
+                                showScheduleSheet = true
+                            } else {
+                                Toast.makeText(context, "Type a message first to schedule", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF9500).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Default.Schedule, contentDescription = null, tint = Color(0xFFFF9500), modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column {
+                        Text("Schedule Send", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                        Text("Set a specific date and time to send", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
     }
 }
 

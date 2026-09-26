@@ -87,6 +87,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferencesRepo.updateHaptics(enabled) }
     }
 
+    fun setSortOrder(order: com.example.data.preferences.ConversationSortOrder) {
+        viewModelScope.launch { preferencesRepo.updateSortOrder(order) }
+    }
+
+    fun setVibration(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.updateVibration(enabled) }
+    }
+
     fun setDefaultSubId(subId: Int) {
         viewModelScope.launch { preferencesRepo.updateDefaultSubId(subId) }
     }

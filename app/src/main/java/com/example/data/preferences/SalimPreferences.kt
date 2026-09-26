@@ -30,6 +30,12 @@ enum class AmbientBackgroundMode {
     OFF, SUBTLE, DYNAMIC
 }
 
+enum class ConversationSortOrder(val title: String) {
+    RECENT("Most Recent"),
+    UNREAD_FIRST("Unread First"),
+    NAME_AZ("Contact Name (A–Z)")
+}
+
 data class SalimSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val pureBlackOled: Boolean = true,
@@ -43,7 +49,9 @@ data class SalimSettings(
     val biometricLockEnabled: Boolean = false,
     val flagSecureEnabled: Boolean = false,
     val deliverySoundsEnabled: Boolean = true,
-    val defaultSubId: Int = -1
+    val defaultSubId: Int = -1,
+    val sortOrder: ConversationSortOrder = ConversationSortOrder.RECENT,
+    val vibrationEnabled: Boolean = true
 )
 
 class PreferencesRepository(private val context: Context) {
@@ -62,6 +70,8 @@ class PreferencesRepository(private val context: Context) {
         val FLAG_SECURE = booleanPreferencesKey("flag_secure")
         val DELIVERY_SOUNDS = booleanPreferencesKey("delivery_sounds")
         val DEFAULT_SUB_ID = intPreferencesKey("default_sub_id")
+        val SORT_ORDER = stringPreferencesKey("sort_order")
+        val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
     }
 
     val settingsFlow: Flow<SalimSettings> = context.dataStore.data.map { preferences ->
@@ -73,6 +83,9 @@ class PreferencesRepository(private val context: Context) {
 
         val ambientStr = preferences[PreferencesKeys.AMBIENT_BG] ?: AmbientBackgroundMode.SUBTLE.name
         val ambient = runCatching { AmbientBackgroundMode.valueOf(ambientStr) }.getOrDefault(AmbientBackgroundMode.SUBTLE)
+
+        val sortStr = preferences[PreferencesKeys.SORT_ORDER] ?: ConversationSortOrder.RECENT.name
+        val sortOrder = runCatching { ConversationSortOrder.valueOf(sortStr) }.getOrDefault(ConversationSortOrder.RECENT)
 
         SalimSettings(
             themeMode = themeMode,
@@ -87,7 +100,9 @@ class PreferencesRepository(private val context: Context) {
             biometricLockEnabled = preferences[PreferencesKeys.BIOMETRIC_LOCK] ?: false,
             flagSecureEnabled = preferences[PreferencesKeys.FLAG_SECURE] ?: false,
             deliverySoundsEnabled = preferences[PreferencesKeys.DELIVERY_SOUNDS] ?: true,
-            defaultSubId = preferences[PreferencesKeys.DEFAULT_SUB_ID] ?: -1
+            defaultSubId = preferences[PreferencesKeys.DEFAULT_SUB_ID] ?: -1,
+            sortOrder = sortOrder,
+            vibrationEnabled = preferences[PreferencesKeys.VIBRATION_ENABLED] ?: true
         )
     }
 
@@ -137,6 +152,14 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun updateDeliverySounds(enabled: Boolean) {
         context.dataStore.edit { it[PreferencesKeys.DELIVERY_SOUNDS] = enabled }
+    }
+
+    suspend fun updateSortOrder(order: ConversationSortOrder) {
+        context.dataStore.edit { it[PreferencesKeys.SORT_ORDER] = order.name }
+    }
+
+    suspend fun updateVibration(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.VIBRATION_ENABLED] = enabled }
     }
 
     suspend fun updateDefaultSubId(subId: Int) {

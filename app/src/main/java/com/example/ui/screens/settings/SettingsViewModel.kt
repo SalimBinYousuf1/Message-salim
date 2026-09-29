@@ -99,6 +99,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferencesRepo.updateDefaultSubId(subId) }
     }
 
+    fun setFontSizeScale(scale: Float) {
+        viewModelScope.launch { preferencesRepo.updateFontSizeScale(scale) }
+    }
+
     fun unblockContact(address: String) {
         viewModelScope.launch { blockedDao.unblock(address) }
     }

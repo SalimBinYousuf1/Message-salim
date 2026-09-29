@@ -21,8 +21,10 @@ import kotlinx.coroutines.withContext
 
 enum class ConversationCategoryFilter(val label: String) {
     ALL("All"),
+    UNREAD("Unread"),
     PERSONAL("Personal"),
     TRANSACTIONS("Transactions"),
+    MEDIA("Media & Links"),
     UNKNOWN("Unknown"),
     ARCHIVED("Archived")
 }
@@ -84,12 +86,16 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
             // Category filter
             val matchesCategory = when (category) {
                 ConversationCategoryFilter.ALL -> !conv.isArchived
+                ConversationCategoryFilter.UNREAD -> !conv.isArchived && conv.unreadCount > 0
                 ConversationCategoryFilter.ARCHIVED -> conv.isArchived
                 ConversationCategoryFilter.PERSONAL -> {
                     !conv.isArchived && !OtpHelper.isTransactionOrOtp(conv.address, conv.snippet) && conv.displayName != conv.address
                 }
                 ConversationCategoryFilter.TRANSACTIONS -> {
                     !conv.isArchived && OtpHelper.isTransactionOrOtp(conv.address, conv.snippet)
+                }
+                ConversationCategoryFilter.MEDIA -> {
+                    !conv.isArchived && (conv.hasMms || conv.snippet.contains("http://") || conv.snippet.contains("https://") || conv.snippet.contains("www.") || conv.snippet.contains(".jpg") || conv.snippet.contains(".mp4") || conv.snippet.contains(".m4a"))
                 }
                 ConversationCategoryFilter.UNKNOWN -> {
                     !conv.isArchived && !OtpHelper.isTransactionOrOtp(conv.address, conv.snippet) && conv.displayName == conv.address
@@ -127,9 +133,11 @@ class ConversationListViewModel(application: Application) : AndroidViewModel(app
         val categoryUnreadMap = ConversationCategoryFilter.entries.associateWith { cat ->
             when (cat) {
                 ConversationCategoryFilter.ALL -> activeList.count { !it.isArchived && it.unreadCount > 0 }
+                ConversationCategoryFilter.UNREAD -> activeList.count { !it.isArchived && it.unreadCount > 0 }
                 ConversationCategoryFilter.ARCHIVED -> activeList.count { it.isArchived && it.unreadCount > 0 }
                 ConversationCategoryFilter.PERSONAL -> activeList.count { !it.isArchived && !OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.displayName != it.address && it.unreadCount > 0 }
                 ConversationCategoryFilter.TRANSACTIONS -> activeList.count { !it.isArchived && OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.unreadCount > 0 }
+                ConversationCategoryFilter.MEDIA -> activeList.count { !it.isArchived && (it.hasMms || it.snippet.contains("http://") || it.snippet.contains("https://")) && it.unreadCount > 0 }
                 ConversationCategoryFilter.UNKNOWN -> activeList.count { !it.isArchived && !OtpHelper.isTransactionOrOtp(it.address, it.snippet) && it.displayName == it.address && it.unreadCount > 0 }
             }
         }

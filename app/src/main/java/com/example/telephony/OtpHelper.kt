@@ -4,10 +4,12 @@ import java.util.regex.Pattern
 
 object OtpHelper {
     // Matches common OTP patterns:
-    // e.g. "is 123456", "code: 948201", "OTP: 4928", "G-123456"
+    // e.g. "is 123456", "code: 948201", "OTP: 4928", "code 921-304", "G-123456"
     private val OTP_PATTERNS = listOf(
+        Pattern.compile("""(?i)(?:code|otp|passcode|secret|pin|verification)\D{0,10}(\b\d{3}-\d{3,4}\b)"""),
         Pattern.compile("""(?i)(?:code|otp|passcode|secret|verification code|pin)\D{0,10}(\b\d{4,8}\b)"""),
-        Pattern.compile("""\b[A-Z0-9]{1,3}-\d{4,8}\b"""),
+        Pattern.compile("""\b[A-Za-z]{1,2}-(\d{4,8})\b"""),
+        Pattern.compile("""\b(\d{3}-\d{3})\b"""),
         Pattern.compile("""(?i)\b(\d{4,8})\b(?=.*(?:code|verification|verify|authenticate|login))"""),
         Pattern.compile("""(?i)(?:is|:)\s*(\b\d{4,8}\b)""")
     )
@@ -17,9 +19,12 @@ object OtpHelper {
         for (pattern in OTP_PATTERNS) {
             val matcher = pattern.matcher(text)
             if (matcher.find()) {
-                val group = if (matcher.groupCount() >= 1) matcher.group(1) else matcher.group(0)
-                if (!group.isNullOrBlank() && group.length in 4..8) {
-                    return group.trim()
+                val raw = if (matcher.groupCount() >= 1) matcher.group(1) else matcher.group(0)
+                if (!raw.isNullOrBlank()) {
+                    val cleaned = raw.replace("-", "").trim()
+                    if (cleaned.length in 4..8 && cleaned.all { it.isDigit() }) {
+                        return cleaned
+                    }
                 }
             }
         }

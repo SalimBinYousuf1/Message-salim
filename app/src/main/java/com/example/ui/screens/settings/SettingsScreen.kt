@@ -43,10 +43,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -295,6 +295,106 @@ fun SettingsScreen(
                             checked = settings.reducedMotion,
                             onCheckedChange = { viewModel.setReducedMotion(it) }
                         )
+
+                        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        // Message Bubble Text Zoom Slider
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Text Size & Bubble Zoom",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.textPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                val zoomPercent = (settings.fontSizeScale * 100).toInt()
+                                Text(
+                                    text = "$zoomPercent%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.accent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Adjust conversation message text size dynamically",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                            )
+
+                            // 4-step segmented scale buttons: Small (0.85x), Normal (1.0x), Large (1.15x), Extra Large (1.30x)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(CircleShape)
+                                    .background(colors.surfaceVariant.copy(alpha = 0.6f))
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val scales = listOf(
+                                    0.85f to "Small",
+                                    1.00f to "Normal",
+                                    1.15f to "Large",
+                                    1.30f to "XL"
+                                )
+                                scales.forEach { (scaleVal, label) ->
+                                    val isSelected = kotlin.math.abs(settings.fontSizeScale - scaleVal) < 0.05f
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) colors.accent else Color.Transparent)
+                                            .clickable { viewModel.setFontSizeScale(scaleVal) }
+                                            .padding(vertical = 7.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color.White else colors.textPrimary,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Live sample chat bubble preview
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(colors.surfaceVariant.copy(alpha = 0.35f))
+                                    .padding(12.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "Preview",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.textSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(colors.bubbleOutgoing)
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Sample message text at current zoom",
+                                            color = colors.bubbleTextOutgoing,
+                                            fontSize = (15 * settings.fontSizeScale).sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -386,7 +486,7 @@ fun SettingsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.VolumeUp,
+                                    imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                                     contentDescription = null,
                                     tint = colors.accent,
                                     modifier = Modifier.size(20.dp)

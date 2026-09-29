@@ -82,6 +82,7 @@ class ConversationDetailViewModel(
     private val _replyingToMessage = MutableStateFlow<Message?>(null)
     private val _searchQuery = MutableStateFlow("")
     private val _isSearching = MutableStateFlow(false)
+    private val _contactInfo = MutableStateFlow(SmsHelper.resolveContact(app, initialAddress))
 
     private data class ComposerData(
         val text: String,
@@ -146,9 +147,10 @@ class ConversationDetailViewModel(
         _composerData,
         _simData,
         _statusData,
-        _searchAndReactionData
-    ) { composer, sim, status, searchData ->
-        val (name, photo) = SmsHelper.resolveContact(app, initialAddress)
+        _searchAndReactionData,
+        _contactInfo
+    ) { composer, sim, status, searchData, contact ->
+        val (name, photo) = contact
         ConversationDetailUiState(
             threadId = initialThreadId,
             address = initialAddress,
@@ -330,12 +332,22 @@ class ConversationDetailViewModel(
         val subId = _selectedSim.value?.subscriptionId ?: -1
 
         viewModelScope.launch {
-            val success = telephonyRepo.sendMessage(
-                threadId = threadId,
-                destinationAddress = address,
-                messageText = textToSend,
-                subId = subId
-            )
+            val success = if (media != null) {
+                telephonyRepo.sendMediaMessage(
+                    threadId = threadId,
+                    destinationAddress = address,
+                    messageText = textToSend,
+                    mediaUri = media,
+                    subId = subId
+                )
+            } else {
+                telephonyRepo.sendMessage(
+                    threadId = threadId,
+                    destinationAddress = address,
+                    messageText = textToSend,
+                    subId = subId
+                )
+            }
             if (success) {
                 _composerText.value = ""
                 _attachedMedia.value = null
@@ -371,6 +383,38 @@ class ConversationDetailViewModel(
         viewModelScope.launch {
             ScheduledSmsManager.cancelSchedule(app, id)
             scheduledDao.delete(id)
+        }
+    }
+
+    fun rescheduleMessage(id: Long, newTimestamp: Long) {
+        viewModelScope.launch {
+            scheduledDao.updateScheduledTime(id, newTimestamp)
+            val updated = scheduledDao.getById(id)
+            if (updated != null) {
+                ScheduledSmsManager.cancelSchedule(app, id)
+                ScheduledSmsManager.scheduleMessage(app, updated)
+            }
+        }
+    }
+
+    fun sendScheduledNow(scheduled: ScheduledMessage) {
+        viewModelScope.launch {
+            ScheduledSmsManager.cancelSchedule(app, scheduled.id)
+            scheduledDao.delete(scheduled.id)
+            telephonyRepo.sendMessage(
+                threadId = scheduled.threadId,
+                destinationAddress = scheduled.address,
+                messageText = scheduled.body,
+                subId = scheduled.subId
+            )
+        }
+    }
+
+    fun editScheduledMessage(scheduled: ScheduledMessage) {
+        viewModelScope.launch {
+            ScheduledSmsManager.cancelSchedule(app, scheduled.id)
+            scheduledDao.delete(scheduled.id)
+            _composerText.value = scheduled.body
         }
     }
 

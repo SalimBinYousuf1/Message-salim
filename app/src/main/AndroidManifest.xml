@@ -26,7 +26,7 @@
 
     <!-- Alarms & Scheduling -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Notifications & System -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -148,6 +148,16 @@
         <receiver
             android:name=".telephony.ScheduledSmsReceiver"
             android:exported="false" />
+
+        <!-- Receiver for Rescheduling SMS on Device Reboot -->
+        <receiver
+            android:name=".telephony.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -98,11 +100,25 @@ fun MessageBubble(
         if (message.isIncoming) OtpHelper.extractOtp(message.body) else null
     }
 
-    val isAudioAttachment = remember(message.mediaUri, message.mediaMimeType) {
-        val mime = message.mediaMimeType?.lowercase() ?: ""
-        val uriStr = message.mediaUri?.toString()?.lowercase() ?: ""
-        mime.startsWith("audio/") || uriStr.endsWith(".m4a") || uriStr.endsWith(".mp3") || uriStr.endsWith(".aac") || uriStr.endsWith(".wav") || uriStr.endsWith(".3gp") || uriStr.contains("audio")
+    val effectiveAudioUri = remember(message.mediaUri, message.body) {
+        if (message.mediaUri != null) {
+            val uriStr = message.mediaUri.toString().lowercase()
+            val mime = message.mediaMimeType?.lowercase() ?: ""
+            if (mime.startsWith("audio/") || uriStr.endsWith(".m4a") || uriStr.endsWith(".mp3") || uriStr.endsWith(".aac") || uriStr.endsWith(".wav") || uriStr.endsWith(".3gp") || uriStr.contains("audio")) {
+                message.mediaUri
+            } else null
+        } else if (message.body.contains("audio_notes") || message.body.contains("[Voice Note]") || message.body.trim().endsWith(".m4a") || message.body.trim().endsWith(".mp3")) {
+            val path = message.body.substringAfter("[Voice Note]").trim()
+            try {
+                if (path.startsWith("/")) Uri.fromFile(java.io.File(path)) else Uri.parse(path)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
     }
+    val isAudioAttachment = effectiveAudioUri != null
 
     Column(
         modifier = modifier
@@ -119,8 +135,8 @@ fun MessageBubble(
                     .applePressable(
                         pressedScale = 0.98f,
                         onClick = {
-                            if (isAudioAttachment && message.mediaUri != null) {
-                                onPlayAudioClick?.invoke(message)
+                            if (effectiveAudioUri != null) {
+                                onPlayAudioClick?.invoke(message.copy(mediaUri = effectiveAudioUri))
                             } else if (message.mediaUri != null) {
                                 onMediaClick(message)
                             } else if (message.status == MessageStatus.FAILED && isOutgoing) {
@@ -132,12 +148,12 @@ fun MessageBubble(
                     .padding(
                         start = 14.dp,
                         end = 14.dp,
-                        top = if (message.mediaUri != null) 8.dp else 9.dp,
+                        top = if (message.mediaUri != null || isAudioAttachment) 8.dp else 9.dp,
                         bottom = 9.dp
                     )
             ) {
             Column {
-                if (isAudioAttachment && message.mediaUri != null) {
+                if (effectiveAudioUri != null) {
                     // Apple-style Voice Note Audio Player
                     VoiceNotePlayerBubble(
                         isOutgoing = isOutgoing,
@@ -146,7 +162,7 @@ fun MessageBubble(
                         currentMs = audioCurrentMs,
                         durationMs = audioDurationMs,
                         speed = playbackSpeed,
-                        onPlayPauseClick = { onPlayAudioClick?.invoke(message) },
+                        onPlayPauseClick = { onPlayAudioClick?.invoke(message.copy(mediaUri = effectiveAudioUri)) },
                         onToggleSpeed = { onToggleAudioSpeed?.invoke() },
                         onSeek = { onSeekAudio?.invoke(it) }
                     )
@@ -385,26 +401,40 @@ private fun VoiceNotePlayerBubble(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Play / Pause Circle Button
+        // Play / Pause Circle Button with Audio Progress Ring
         Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(if (isOutgoing) Color.White else colors.accent)
-                .applePressable(onClick = onPlayPauseClick),
+            modifier = Modifier.size(38.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = if (isOutgoing) colors.bubbleOutgoing else Color.White,
-                modifier = Modifier.size(20.dp)
-            )
+            if (isPlaying || progress > 0f) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (isOutgoing) Color.White else colors.accent,
+                    strokeWidth = 2.dp,
+                    trackColor = if (isOutgoing) Color.White.copy(alpha = 0.25f) else colors.accent.copy(alpha = 0.20f)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(if (isOutgoing) Color.White else colors.accent)
+                    .applePressable(onClick = onPlayPauseClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = if (isOutgoing) colors.bubbleOutgoing else Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Sound waveform bars & Duration text
+        // Sound waveform bars & Duration text (Interactive scrubbing)
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier
@@ -422,6 +452,7 @@ private fun VoiceNotePlayerBubble(
                             .height(heightDp.dp)
                             .clip(CircleShape)
                             .background(if (isActive) activeWaveColor else inactiveWaveColor)
+                            .clickable { onSeek(index.toFloat() / waveHeights.size.toFloat()) }
                     )
                 }
             }

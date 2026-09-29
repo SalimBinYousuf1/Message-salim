@@ -3,7 +3,12 @@ package com.example
 import android.app.Application
 import androidx.room.Room
 import com.example.data.local.AppDatabase
+import com.example.data.local.MIGRATION_1_2
+import com.example.data.local.MIGRATION_2_3
+import com.example.data.local.MIGRATION_3_4
+import com.example.data.local.MIGRATION_4_5
 import com.example.data.preferences.PreferencesRepository
+import com.example.data.repository.ContactCache
 import com.example.data.repository.ContactsRepository
 import com.example.data.repository.TelephonyRepository
 import com.example.telephony.NotificationHelper
@@ -29,11 +34,22 @@ class SalimApplication : Application() {
             applicationContext,
             AppDatabase::class.java,
             "salim_messages.db"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .fallbackToDestructiveMigrationOnDowngrade()
+            .build()
 
         preferencesRepository = PreferencesRepository(applicationContext)
-        telephonyRepository = TelephonyRepository(applicationContext, database.conversationDao())
+        telephonyRepository = TelephonyRepository(
+            applicationContext,
+            database.conversationDao(),
+            database.localMediaMessageDao()
+        )
         contactsRepository = ContactsRepository(applicationContext)
+
+        // Preload and register observers for high-speed contact lookup
+        ContactCache.preloadContacts(this)
+        ContactCache.registerObserver(this)
 
         NotificationHelper.createNotificationChannels(this)
     }

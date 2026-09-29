@@ -24,12 +24,26 @@ object SmsLengthCalculator {
                 remainingChars = codeUnitsRemaining,
                 isUnicode = isUnicode
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // GSM 03.40 / 3GPP TS 23.040 concatenation standard
             val isUnicode = text.any { it.code > 127 }
-            val limit = if (isUnicode) 70 else 160
-            val segments = (text.length / limit) + 1
-            val rem = limit - (text.length % limit)
-            SmsLengthInfo(segmentCount = segments, remainingChars = rem, isUnicode = isUnicode)
+            if (isUnicode) {
+                if (text.length <= 70) {
+                    SmsLengthInfo(segmentCount = 1, remainingChars = 70 - text.length, isUnicode = true)
+                } else {
+                    val segments = ((text.length - 1) / 67) + 1
+                    val rem = (segments * 67) - text.length
+                    SmsLengthInfo(segmentCount = segments, remainingChars = rem, isUnicode = true)
+                }
+            } else {
+                if (text.length <= 160) {
+                    SmsLengthInfo(segmentCount = 1, remainingChars = 160 - text.length, isUnicode = false)
+                } else {
+                    val segments = ((text.length - 1) / 153) + 1
+                    val rem = (segments * 153) - text.length
+                    SmsLengthInfo(segmentCount = segments, remainingChars = rem, isUnicode = false)
+                }
+            }
         }
     }
 }

@@ -15,6 +15,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,8 +45,11 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Forward
+import androidx.compose.material.icons.automirrored.filled.Forward
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
@@ -67,6 +72,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,6 +82,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -121,6 +128,7 @@ fun ConversationDetailScreen(
     var showDetailsSheet by remember { mutableStateOf<Message?>(null) }
     var showContactInfoSheet by remember { mutableStateOf(false) }
     var showScheduleSheet by remember { mutableStateOf(false) }
+    var manageScheduledMessage by remember { mutableStateOf<com.example.data.local.ScheduledMessage?>(null) }
     var showAttachSheet by remember { mutableStateOf(false) }
     var hasScrolledInitially by remember { mutableStateOf(false) }
 
@@ -218,14 +226,38 @@ fun ConversationDetailScreen(
         else uiState.messages.find { it.isIncoming && com.example.telephony.SpamDetector.isSuspectedSpam(uiState.address, it.body, false) }
     }
 
-    // Show latest message directly on initial open without auto-scrolling down from the top
-    LaunchedEffect(uiState.messages) {
-        if (uiState.messages.isNotEmpty()) {
-            if (!hasScrolledInitially) {
-                listState.scrollToItem(uiState.messages.size - 1)
-                hasScrolledInitially = true
-            } else {
-                listState.animateScrollToItem(uiState.messages.size - 1)
+    val isAtLatestMessage by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val total = layoutInfo.totalItemsCount
+            if (total == 0) true
+            else {
+                val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                lastVisibleIndex >= total - 1
+            }
+        }
+    }
+
+    var isInitialPositionEstablished by remember { mutableStateOf(false) }
+    val previousMessageCount = remember { mutableIntStateOf(uiState.messages.size) }
+
+    // Instant initial non-animated positioning directly at latest message
+    LaunchedEffect(uiState.messages.isNotEmpty()) {
+        if (uiState.messages.isNotEmpty() && !isInitialPositionEstablished) {
+            listState.scrollToItem(uiState.messages.size - 1)
+            isInitialPositionEstablished = true
+        }
+    }
+
+    // Smart anchor for new messages: only scroll down if user was already at the latest message
+    LaunchedEffect(uiState.messages.size) {
+        val oldCount = previousMessageCount.intValue
+        val newCount = uiState.messages.size
+        previousMessageCount.intValue = newCount
+
+        if (newCount > oldCount && isInitialPositionEstablished) {
+            if (isAtLatestMessage) {
+                listState.animateScrollToItem(newCount - 1)
             }
         }
     }
@@ -244,7 +276,7 @@ fun ConversationDetailScreen(
             topBar = {
                 SalimDetailTopBar(
                     title = uiState.displayName,
-                    subtitle = if (uiState.isBlocked) "Blocked" else if (uiState.displayName != uiState.address) uiState.address else null,
+                    subtitle = if (uiState.isBlocked) "Blocked" else if (uiState.address.contains(",")) "${uiState.address.split(",").size} Participants" else if (uiState.displayName != uiState.address) uiState.address else null,
                     onBackClick = onBackClick,
                     isScrolled = isScrolled,
                     glassOpacity = settings.glassOpacity,
@@ -337,7 +369,8 @@ fun ConversationDetailScreen(
                         onRemoveAttachment = { viewModel.onMediaAttached(null) },
                         availableSims = uiState.availableSims,
                         selectedSim = uiState.selectedSim,
-                        onToggleSim = { viewModel.toggleSim() }
+                        onToggleSim = { viewModel.toggleSim() },
+                        fontScale = settings.fontSizeScale
                     )
                 }
             }
@@ -453,6 +486,7 @@ fun ConversationDetailScreen(
                                 .padding(horizontal = 16.dp, vertical = 6.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(colors.accent.copy(alpha = 0.12f))
+                                .clickable { manageScheduledMessage = firstScheduled }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -477,8 +511,8 @@ fun ConversationDetailScreen(
                                     fontSize = 12.sp
                                 )
                             }
-                            TextButton(onClick = { viewModel.cancelScheduledMessage(firstScheduled.id) }) {
-                                Text("Cancel", color = Color(0xFFFF3B30), fontSize = 12.sp)
+                            TextButton(onClick = { manageScheduledMessage = firstScheduled }) {
+                                Text("Manage", color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -686,6 +720,114 @@ fun ConversationDetailScreen(
         }
     }
 
+    // Manage / Reschedule Scheduled Message Sheet
+    if (manageScheduledMessage != null) {
+        val scheduled = manageScheduledMessage!!
+        val formattedTime = SimpleDateFormat("EEE, MMM d 'at' h:mm a", Locale.getDefault())
+            .format(Date(scheduled.scheduledTimestamp))
+
+        ModalBottomSheet(
+            onDismissRequest = { manageScheduledMessage = null },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = colors.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Manage Scheduled Message",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Currently set for $formattedTime",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = scheduled.body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ContextMenuItem(
+                    icon = Icons.AutoMirrored.Filled.Send,
+                    text = "Send Now",
+                    onClick = {
+                        viewModel.sendScheduledNow(scheduled)
+                        manageScheduledMessage = null
+                        Toast.makeText(context, "Sending message now", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                ContextMenuItem(
+                    icon = Icons.Default.Edit,
+                    text = "Edit Message Body",
+                    onClick = {
+                        viewModel.editScheduledMessage(scheduled)
+                        manageScheduledMessage = null
+                        Toast.makeText(context, "Loaded into composer", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                ContextMenuItem(
+                    icon = Icons.Default.Schedule,
+                    text = "Reschedule: In 1 Hour",
+                    onClick = {
+                        viewModel.rescheduleMessage(scheduled.id, System.currentTimeMillis() + 3600000L)
+                        manageScheduledMessage = null
+                        Toast.makeText(context, "Rescheduled for 1 hour from now", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                ContextMenuItem(
+                    icon = Icons.Default.LockClock,
+                    text = "Reschedule: Tomorrow at 9:00 AM",
+                    onClick = {
+                        val cal = Calendar.getInstance().apply {
+                            add(Calendar.DAY_OF_YEAR, 1)
+                            set(Calendar.HOUR_OF_DAY, 9)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                        }
+                        viewModel.rescheduleMessage(scheduled.id, cal.timeInMillis)
+                        manageScheduledMessage = null
+                        Toast.makeText(context, "Rescheduled for tomorrow 9:00 AM", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                HorizontalDivider(color = colors.divider, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                ContextMenuItem(
+                    icon = Icons.Default.Delete,
+                    text = "Delete Scheduled Message",
+                    tint = Color(0xFFFF3B30),
+                    onClick = {
+                        viewModel.cancelScheduledMessage(scheduled.id)
+                        manageScheduledMessage = null
+                        Toast.makeText(context, "Scheduled message cancelled", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
+    }
+
     // Message Long-Press Actions BottomSheet
     if (activeMessageForContext != null) {
         val message = activeMessageForContext!!
@@ -768,7 +910,7 @@ fun ConversationDetailScreen(
                 }
 
                 ContextMenuItem(
-                    icon = Icons.Default.Forward,
+                    icon = Icons.AutoMirrored.Filled.Forward,
                     text = "Forward",
                     onClick = {
                         activeMessageForContext = null

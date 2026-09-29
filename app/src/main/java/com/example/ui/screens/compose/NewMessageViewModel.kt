@@ -137,8 +137,13 @@ class NewMessageViewModel(application: Application) : AndroidViewModel(applicati
 
         _isSending.value = true
         viewModelScope.launch {
-            val primaryRecipient = recipients[0]
-            val threadId = telephonyRepo.getOrCreateThreadId(primaryRecipient)
+            val isGroup = recipients.size > 1
+            val threadAddress = if (isGroup) recipients.joinToString(", ") else recipients[0]
+            val threadId = if (isGroup) {
+                telephonyRepo.getOrCreateGroupThreadId(recipients.toSet())
+            } else {
+                telephonyRepo.getOrCreateThreadId(recipients[0])
+            }
 
             recipients.forEach { recipient ->
                 telephonyRepo.sendMessage(
@@ -149,7 +154,7 @@ class NewMessageViewModel(application: Application) : AndroidViewModel(applicati
             }
 
             _isSending.value = false
-            onSuccess(threadId, primaryRecipient)
+            onSuccess(threadId, threadAddress)
         }
     }
 }

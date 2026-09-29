@@ -8,9 +8,13 @@ import android.os.Looper
 import android.provider.Telephony
 import com.example.data.local.ConversationDao
 import com.example.data.local.ConversationMetadata
+import com.example.data.local.LocalMediaMessage
+import com.example.data.local.LocalMediaMessageDao
 import com.example.data.model.Conversation
 import com.example.data.model.Message
+import com.example.data.model.MessageStatus
 import com.example.data.model.SimCardInfo
+import com.example.telephony.MediaStorageHelper
 import com.example.telephony.SmsHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -22,7 +26,8 @@ import kotlinx.coroutines.withContext
 
 class TelephonyRepository(
     private val context: Context,
-    private val conversationDao: ConversationDao
+    private val conversationDao: ConversationDao,
+    private val localMediaDao: LocalMediaMessageDao
 ) {
 
     /**
@@ -113,8 +118,22 @@ class TelephonyRepository(
                 // ignore
             }
         }
-    }.combine(conversationDao.getAllMetadata()) { _, _ ->
-        SmsHelper.queryMessages(context, threadId)
+    }.combine(localMediaDao.getMessagesForThread(threadId)) { _, localMediaList ->
+        val smsMessages = SmsHelper.queryMessages(context, threadId)
+        val mappedLocalMedia = localMediaList.map { local ->
+            Message(
+                id = -local.id, // negative key to differentiate local media messages from SMS provider IDs
+                threadId = local.threadId,
+                address = local.address,
+                body = local.body,
+                date = local.timestamp,
+                isIncoming = local.isIncoming,
+                mediaUri = Uri.parse(local.persistentFileUri),
+                mediaMimeType = local.mimeType,
+                status = MessageStatus.DELIVERED
+            )
+        }
+        (smsMessages + mappedLocalMedia).sortedBy { it.date }
     }.flowOn(Dispatchers.IO)
 
     suspend fun sendMessage(
@@ -131,12 +150,49 @@ class TelephonyRepository(
         success
     }
 
+    suspend fun sendMediaMessage(
+        threadId: Long,
+        destinationAddress: String,
+        messageText: String,
+        mediaUri: Uri,
+        subId: Int = -1
+    ): Boolean = withContext(Dispatchers.IO) {
+        val savedFile = MediaStorageHelper.saveMediaToInternalStorage(context, mediaUri)
+        val fileUri = if (savedFile != null) Uri.fromFile(savedFile).toString() else mediaUri.toString()
+        val mimeType = context.contentResolver.getType(mediaUri) ?: "image/jpeg"
+
+        localMediaDao.insert(
+            LocalMediaMessage(
+                threadId = threadId,
+                address = destinationAddress,
+                isIncoming = false,
+                body = messageText,
+                persistentFileUri = fileUri,
+                mimeType = mimeType,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+
+        if (messageText.isNotBlank()) {
+            SmsHelper.sendSms(context, destinationAddress, messageText, subId)
+        }
+        if (threadId > 0) {
+            conversationDao.saveDraft(threadId, null)
+        }
+        true
+    }
+
     suspend fun markThreadAsRead(threadId: Long) = withContext(Dispatchers.IO) {
         SmsHelper.markThreadAsRead(context, threadId)
     }
 
     suspend fun deleteMessage(messageId: Long): Boolean = withContext(Dispatchers.IO) {
-        SmsHelper.deleteMessage(context, messageId)
+        if (messageId < 0) {
+            localMediaDao.delete(-messageId)
+            true
+        } else {
+            SmsHelper.deleteMessage(context, messageId)
+        }
     }
 
     suspend fun deleteThread(threadId: Long): Boolean = withContext(Dispatchers.IO) {
@@ -182,5 +238,9 @@ class TelephonyRepository(
 
     suspend fun getOrCreateThreadId(address: String): Long {
         return SmsHelper.getOrCreateThreadId(context, address)
+    }
+
+    suspend fun getOrCreateGroupThreadId(recipients: Set<String>): Long {
+        return SmsHelper.getOrCreateGroupThreadId(context, recipients)
     }
 }

@@ -79,6 +79,31 @@ object ScheduledSmsManager {
             pendingIntent.cancel()
         }
     }
+
+    fun rescheduleAllPending(context: Context) {
+        val app = context.applicationContext as? SalimApplication ?: return
+        val scheduledDao = app.database.scheduledMessageDao()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val now = System.currentTimeMillis()
+                // Dispatch any overdue messages
+                val pastDue = scheduledDao.getPendingDue(now)
+                for (msg in pastDue) {
+                    val success = SmsHelper.sendSms(context, msg.address, msg.body, msg.subId)
+                    scheduledDao.updateStatus(msg.id, if (success) "SENT" else "FAILED")
+                }
+                // Reschedule upcoming messages
+                val pendingList = scheduledDao.getPendingDue(Long.MAX_VALUE)
+                for (msg in pendingList) {
+                    if (msg.scheduledTimestamp > now && msg.status == "PENDING") {
+                        scheduleMessage(context, msg)
+                    }
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+    }
 }
 
 class ScheduledSmsReceiver : BroadcastReceiver() {

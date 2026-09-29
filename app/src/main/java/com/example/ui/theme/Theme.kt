@@ -1,6 +1,8 @@
 package com.example.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -43,9 +45,9 @@ val LocalSalimColors = staticCompositionLocalOf {
         textSecondary = LightTextSecondary,
         textTertiary = LightTextTertiary,
         bubbleIncoming = LightBubbleIncoming,
-        bubbleOutgoing = AppleBlue,
-        bubbleTextIncoming = LightTextPrimary,
-        bubbleTextOutgoing = Color.White,
+        bubbleOutgoing = LightBubbleOutgoing,
+        bubbleTextIncoming = LightBubbleTextIncoming,
+        bubbleTextOutgoing = LightBubbleTextOutgoing,
         accent = AppleBlue,
         divider = LightDivider,
         isDark = false
@@ -56,6 +58,7 @@ val LocalSalimThemeMode = staticCompositionLocalOf {
     ThemeMode.SYSTEM
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalimTheme(
     settings: SalimSettings = SalimSettings(),
@@ -83,9 +86,9 @@ fun SalimTheme(
                 textSecondary = DarkTextSecondary,
                 textTertiary = DarkTextTertiary,
                 bubbleIncoming = DarkBubbleIncoming,
-                bubbleOutgoing = accentColor,
-                bubbleTextIncoming = DarkTextPrimary,
-                bubbleTextOutgoing = Color.White,
+                bubbleOutgoing = DarkBubbleOutgoing,
+                bubbleTextIncoming = DarkBubbleTextIncoming,
+                bubbleTextOutgoing = DarkBubbleTextOutgoing,
                 accent = accentColor,
                 divider = DarkDivider,
                 isDark = true
@@ -101,8 +104,8 @@ fun SalimTheme(
                 textPrimary = Color(0xFF1C1C1E),
                 textSecondary = Color(0xFF505054),
                 textTertiary = Color(0xFF8E8E93),
-                bubbleIncoming = Color(0xF5FFFFFF),
-                bubbleOutgoing = accentColor,
+                bubbleIncoming = Color(0xCCF2F2F7),
+                bubbleOutgoing = Color(0xEE1C1C1E),
                 bubbleTextIncoming = Color(0xFF1C1C1E),
                 bubbleTextOutgoing = Color.White,
                 accent = accentColor,
@@ -121,9 +124,9 @@ fun SalimTheme(
                 textSecondary = LightTextSecondary,
                 textTertiary = LightTextTertiary,
                 bubbleIncoming = LightBubbleIncoming,
-                bubbleOutgoing = accentColor,
-                bubbleTextIncoming = LightTextPrimary,
-                bubbleTextOutgoing = Color.White,
+                bubbleOutgoing = LightBubbleOutgoing,
+                bubbleTextIncoming = LightBubbleTextIncoming,
+                bubbleTextOutgoing = LightBubbleTextOutgoing,
                 accent = accentColor,
                 divider = LightDivider,
                 isDark = false
@@ -141,9 +144,9 @@ fun SalimTheme(
                     textSecondary = DarkTextSecondary,
                     textTertiary = DarkTextTertiary,
                     bubbleIncoming = DarkBubbleIncoming,
-                    bubbleOutgoing = accentColor,
-                    bubbleTextIncoming = DarkTextPrimary,
-                    bubbleTextOutgoing = Color.White,
+                    bubbleOutgoing = DarkBubbleOutgoing,
+                    bubbleTextIncoming = DarkBubbleTextIncoming,
+                    bubbleTextOutgoing = DarkBubbleTextOutgoing,
                     accent = accentColor,
                     divider = DarkDivider,
                     isDark = true
@@ -159,9 +162,9 @@ fun SalimTheme(
                     textSecondary = LightTextSecondary,
                     textTertiary = LightTextTertiary,
                     bubbleIncoming = LightBubbleIncoming,
-                    bubbleOutgoing = accentColor,
-                    bubbleTextIncoming = LightTextPrimary,
-                    bubbleTextOutgoing = Color.White,
+                    bubbleOutgoing = LightBubbleOutgoing,
+                    bubbleTextIncoming = LightBubbleTextIncoming,
+                    bubbleTextOutgoing = LightBubbleTextOutgoing,
                     accent = accentColor,
                     divider = LightDivider,
                     isDark = false
@@ -196,11 +199,12 @@ fun SalimTheme(
 
     CompositionLocalProvider(
         LocalSalimColors provides customColors,
-        LocalSalimThemeMode provides settings.themeMode
+        LocalSalimThemeMode provides settings.themeMode,
+        LocalRippleConfiguration provides null // Remove Android Material wave/ripple effects in favor of Apple tactile spring press
     ) {
         MaterialTheme(
             colorScheme = m3ColorScheme,
-            typography = Typography,
+            typography = SalimTypography,
             content = content
         )
     }

@@ -73,6 +73,7 @@ fun ComposerBar(
     selectedSim: SimCardInfo? = null,
     onToggleSim: () -> Unit = {},
     isSendEnabled: Boolean = text.isNotBlank() || attachedMediaUri != null,
+    fontScale: Float = 1.0f,
     glassOpacity: Float = 0.82f,
     reducedTransparency: Boolean = false,
     modifier: Modifier = Modifier
@@ -340,7 +341,7 @@ fun ComposerBar(
                                 text = "iMessage",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textSecondary.copy(alpha = 0.75f),
-                                fontSize = 15.sp
+                                fontSize = (15 * fontScale).sp
                             )
                         }
 
@@ -349,7 +350,7 @@ fun ComposerBar(
                             onValueChange = onTextChange,
                             textStyle = TextStyle(
                                 color = colors.textPrimary,
-                                fontSize = 15.sp,
+                                fontSize = (15 * fontScale).sp,
                                 fontWeight = FontWeight.Normal
                             ),
                             cursorBrush = SolidColor(colors.accent),

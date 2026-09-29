@@ -95,43 +95,13 @@ object SmsHelper {
         return list
     }
 
+    private val threadAddressCache = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
     /**
-     * Resolve contact display name and photo URI from phone number.
+     * Resolve contact display name and photo URI from phone number via high-speed ContactCache.
      */
     fun resolveContact(context: Context, phoneNumber: String): Pair<String, String?> {
-        if (phoneNumber.isBlank() ||
-            ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return Pair(phoneNumber, null)
-        }
-
-        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
-        val projection = arrayOf(
-            ContactsContract.PhoneLookup.DISPLAY_NAME,
-            ContactsContract.PhoneLookup.PHOTO_URI,
-            ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI
-        )
-
-        try {
-            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
-                    val photoIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
-                    val thumbIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
-
-                    val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
-                    val photo = if (photoIdx != -1) cursor.getString(photoIdx) else null
-                    val thumb = if (thumbIdx != -1) cursor.getString(thumbIdx) else null
-
-                    if (!name.isNullOrBlank()) {
-                        return Pair(name, photo ?: thumb)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // ignore
-        }
-        return Pair(phoneNumber, null)
+        return com.example.data.repository.ContactCache.resolveContact(context, phoneNumber)
     }
 
     /**
@@ -255,6 +225,9 @@ object SmsHelper {
     }
 
     private fun queryAddressForThread(context: Context, threadId: Long): String {
+        val cached = threadAddressCache[threadId]
+        if (!cached.isNullOrBlank()) return cached
+
         val uri = Telephony.Sms.CONTENT_URI
         val projection = arrayOf(Telephony.Sms.ADDRESS)
         try {
@@ -269,7 +242,10 @@ object SmsHelper {
                     val idx = cursor.getColumnIndex(Telephony.Sms.ADDRESS)
                     if (idx != -1) {
                         val addr = cursor.getString(idx)
-                        if (!addr.isNullOrBlank()) return addr
+                        if (!addr.isNullOrBlank()) {
+                            threadAddressCache[threadId] = addr
+                            return addr
+                        }
                     }
                 }
             }
@@ -652,6 +628,20 @@ object SmsHelper {
             return@withContext Telephony.Threads.getOrCreateThreadId(context, recipient)
         } catch (e: Exception) {
             return@withContext recipient.hashCode().toLong()
+        }
+    }
+
+    /**
+     * Resolve threadId for multiple recipients (Group MMS / multi-SMS conversation).
+     */
+    suspend fun getOrCreateGroupThreadId(context: Context, recipients: Set<String>): Long = withContext(Dispatchers.IO) {
+        if (recipients.size == 1) {
+            return@withContext getOrCreateThreadId(context, recipients.first())
+        }
+        try {
+            return@withContext Telephony.Threads.getOrCreateThreadId(context, recipients)
+        } catch (e: Exception) {
+            return@withContext recipients.sorted().joinToString(",").hashCode().toLong()
         }
     }
 }

@@ -192,6 +192,7 @@ fun NewMessageScreen(
                     onAttachClick = {},
                     glassOpacity = settings.glassOpacity,
                     reducedTransparency = settings.reducedTransparency,
+                    fontScale = settings.fontSizeScale,
                     isSendEnabled = canSend
                 )
             }

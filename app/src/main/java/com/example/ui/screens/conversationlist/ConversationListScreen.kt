@@ -104,6 +104,7 @@ import com.example.ui.components.SalimLargeTopBar
 import com.example.ui.components.SquircleButtonShape
 import com.example.ui.components.SquircleCardShape
 import com.example.ui.components.SquirclePillShape
+import com.example.ui.components.SwipeableConversationRow
 import com.example.ui.components.applePressable
 import com.example.ui.theme.LocalSalimColors
 import java.text.SimpleDateFormat
@@ -450,8 +451,10 @@ fun ConversationListScreen(
                 if (uiState.conversations.isEmpty()) {
                     val emptyTitle = when (uiState.categoryFilter) {
                         ConversationCategoryFilter.ALL -> if (uiState.searchQuery.isBlank()) "No Conversations" else "No Results Found"
+                        ConversationCategoryFilter.UNREAD -> "No Unread Messages"
                         ConversationCategoryFilter.PERSONAL -> "No Personal Messages"
                         ConversationCategoryFilter.TRANSACTIONS -> "No Transaction Alerts"
+                        ConversationCategoryFilter.MEDIA -> "No Media or Link Messages"
                         ConversationCategoryFilter.UNKNOWN -> "No Unknown Senders"
                         ConversationCategoryFilter.ARCHIVED -> "Archive is Empty"
                     }
@@ -486,26 +489,38 @@ fun ConversationListScreen(
                             key = { it.threadId }
                         ) { conv ->
                             val isSelected = uiState.selectedThreadIds.contains(conv.threadId)
-                            ConversationRowItem(
-                                conversation = conv,
-                                isSelected = isSelected,
-                                isSelectionMode = uiState.isSelectionMode,
-                                onClick = {
-                                    if (uiState.isSelectionMode) {
-                                        viewModel.toggleSelectThread(conv.threadId)
-                                    } else {
-                                        onNavigateToConversation(conv.threadId, conv.address)
+                            SwipeableConversationRow(
+                                isPinned = conv.isPinned,
+                                isArchived = conv.isArchived,
+                                isUnread = conv.unreadCount > 0,
+                                onPinToggle = { viewModel.togglePin(conv.threadId, conv.isPinned) },
+                                onReadToggle = { viewModel.markThreadRead(conv.threadId, conv.unreadCount > 0) },
+                                onArchiveToggle = { viewModel.toggleArchive(conv.threadId, conv.isArchived) },
+                                onDelete = { viewModel.deleteThread(conv.threadId) },
+                                enabled = !uiState.isSelectionMode
+                            ) {
+                                ConversationRowItem(
+                                    conversation = conv,
+                                    isSelected = isSelected,
+                                    isSelectionMode = uiState.isSelectionMode,
+                                    onClick = {
+                                        if (uiState.isSelectionMode) {
+                                            viewModel.toggleSelectThread(conv.threadId)
+                                        } else {
+                                            onNavigateToConversation(conv.threadId, conv.address)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        actionSheetThread = conv
+                                    },
+                                    onCopyOtp = { code ->
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("OTP Code", code)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "Code $code copied to clipboard", Toast.LENGTH_SHORT).show()
                                     }
-                                },
-                                onLongClick = {
-                                    actionSheetThread = conv
-                                },
-                                onCopyOtp = { code ->
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("OTP Code", code))
-                                    Toast.makeText(context, "Code $code copied to clipboard", Toast.LENGTH_SHORT).show()
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
